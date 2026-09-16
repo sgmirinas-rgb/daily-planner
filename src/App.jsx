@@ -627,8 +627,9 @@ export default function App() {
   const [moveTargetIds, setMoveTargetIds] = useState([]);
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  
-  // 실시간 동기화로 인한 무한 저장을 방지하기 위한 안전장치
+
+  // 🌟 폰-PC 실시간 동기화 충돌 방지용 고유 ID (내가 보낸 변경사항인지 구분)
+  const clientId = useMemo(() => uid(), []);
   const isRemoteUpdate = useRef(false);
 
   useEffect(() => {
@@ -666,7 +667,7 @@ export default function App() {
     })();
   }, [session?.user?.id]);
 
-  // 실시간 방송(Realtime) 수신 대기
+  // 실시간 동기화 (Realtime 수신 대기)
   useEffect(() => {
     if (!session?.user) return;
 
@@ -675,14 +676,18 @@ export default function App() {
       .on(
         'postgres_changes',
         {
-          event: '*', // 데이터베이스에서 일어나는 모든 변화(저장, 수정 등)를 감지
+          event: '*', // 변경 감지
           schema: 'public',
           table: 'planner_data',
-          filter: `user_id=eq.${session.user.id}`, // 내 데이터만!
+          filter: `user_id=eq.${session.user.id}`, // 내 것만
         },
         (payload) => {
           if (payload.new && payload.new.data) {
-            // 다른 기기에서 수정한 내용을 받았을 때, 무한 저장을 막고 화면만 새로고침!
+            // 내가 방금 보낸 저장 요청의 메아리라면 무시 (초기화 에러 방지)
+            if (payload.new.data.last_client_id === clientId) {
+              return;
+            }
+            // 폰이나 다른 기기에서 수정한 내용이라면 내 화면 업데이트
             isRemoteUpdate.current = true;
             setData(materializeAll(payload.new.data));
           }
@@ -693,28 +698,32 @@ export default function App() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, clientId]);
 
   // 자동 저장
   useEffect(() => {
     if (!loaded || !data || !session?.user) return;
     
-    // 만약 방금 폰에서 받은 데이터로 화면을 바꾼 거라면 다시 서버로 저장하지 않음! (안전장치)
+    // 외부(다른 기기)에서 받은 업데이트 때문에 화면이 바뀐 거라면 서버로 다시 덮어쓰지 않음
     if (isRemoteUpdate.current) {
       isRemoteUpdate.current = false;
       return;
     }
 
     const timer = setTimeout(async () => {
+      // 서버로 보낼 때 "내가 보낸 데이터야!" 라고 clientId 꼬리표를 붙임
+      const dataToSave = { ...data, last_client_id: clientId };
+      
       const { error } = await supabase.from('planner_data').upsert({
         user_id: session.user.id,
-        data,
+        data: dataToSave,
         updated_at: new Date().toISOString(),
       });
       if (error) console.error('플래너 데이터 저장 실패:', error);
-    }, 250);
+    }, 300); // 0.3초 여유를 두고 저장
+    
     return () => clearTimeout(timer);
-  }, [data, loaded, session?.user?.id]);
+  }, [data, loaded, session?.user?.id, clientId]);
 
   const todosByDate = useMemo(() => {
     const map = {};

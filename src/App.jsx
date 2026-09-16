@@ -19,26 +19,30 @@ const CATEGORY_COLORS = ['#D32F2F', '#E53935', '#F57C00', '#F9A825', '#388E3C', 
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
-/* ---------- Korean public holidays ---------- */
+/* ---------- Korean public holidays (2026-2030 완벽 반영) ---------- */
 const KOREAN_HOLIDAYS = {
+  // 2026년
   '2026-01-01': { name: '신정', type: 'holiday' },
   '2026-02-16': { name: '설날 연휴', type: 'holiday' },
   '2026-02-17': { name: '설날', type: 'holiday' },
   '2026-02-18': { name: '설날 연휴', type: 'holiday' },
   '2026-03-01': { name: '삼일절', type: 'holiday' },
-  '2026-03-02': { name: '삼일절 대체휴일', type: 'holiday' },
+  '2026-03-02': { name: '삼일절 대체공휴일', type: 'holiday' },
   '2026-05-05': { name: '어린이날', type: 'holiday' },
   '2026-05-24': { name: '부처님오신날', type: 'holiday' },
-  '2026-05-25': { name: '부처님오신날 대체휴일', type: 'holiday' },
+  '2026-05-25': { name: '부처님오신날 대체공휴일', type: 'holiday' },
   '2026-06-06': { name: '현충일', type: 'holiday' },
-  '2026-07-17': { name: '제헌절', type: 'holiday' },
   '2026-08-15': { name: '광복절', type: 'holiday' },
-  '2026-08-17': { name: '광복절 대체휴일', type: 'holiday' },
+  '2026-08-17': { name: '광복절 대체공휴일', type: 'holiday' },
+  '2026-09-24': { name: '추석 연휴', type: 'holiday' },
+  '2026-09-25': { name: '추석', type: 'holiday' },
+  '2026-09-26': { name: '추석 연휴', type: 'holiday' },
   '2026-10-03': { name: '개천절', type: 'holiday' },
-  '2026-10-05': { name: '개천절 대체휴일', type: 'holiday' },
+  '2026-10-05': { name: '개천절 대체공휴일', type: 'holiday' },
   '2026-10-09': { name: '한글날', type: 'holiday' },
   '2026-12-25': { name: '성탄절', type: 'holiday' },
 
+  // 2027년
   '2027-01-01': { name: '신정', type: 'holiday' },
   '2027-02-06': { name: '설날 연휴', type: 'holiday' },
   '2027-02-07': { name: '설날', type: 'holiday' },
@@ -48,13 +52,17 @@ const KOREAN_HOLIDAYS = {
   '2027-05-13': { name: '부처님오신날', type: 'holiday' },
   '2027-06-06': { name: '현충일', type: 'holiday' },
   '2027-08-15': { name: '광복절', type: 'holiday' },
-  '2027-08-16': { name: '광복절 대체휴일', type: 'holiday' },
+  '2027-08-16': { name: '광복절 대체공휴일', type: 'holiday' },
+  '2027-09-14': { name: '추석 연휴', type: 'holiday' },
+  '2027-09-15': { name: '추석', type: 'holiday' },
+  '2027-09-16': { name: '추석 연휴', type: 'holiday' },
   '2027-10-03': { name: '개천절', type: 'holiday' },
-  '2027-10-04': { name: '개천절 대체휴일', type: 'holiday' },
+  '2027-10-04': { name: '개천절 대체공휴일', type: 'holiday' },
   '2027-10-09': { name: '한글날', type: 'holiday' },
-  '2027-10-11': { name: '한글날 대체휴일', type: 'holiday' },
+  '2027-10-11': { name: '한글날 대체공휴일', type: 'holiday' },
   '2027-12-25': { name: '성탄절', type: 'holiday' },
 
+  // 2028년
   '2028-01-01': { name: '신정', type: 'holiday' },
   '2028-01-26': { name: '설날 연휴', type: 'holiday' },
   '2028-01-27': { name: '설날', type: 'holiday' },
@@ -64,33 +72,48 @@ const KOREAN_HOLIDAYS = {
   '2028-05-05': { name: '어린이날', type: 'holiday' },
   '2028-06-06': { name: '현충일', type: 'holiday' },
   '2028-08-15': { name: '광복절', type: 'holiday' },
-  '2028-10-03': { name: '개천절', type: 'holiday' },
+  '2028-10-02': { name: '추석 연휴', type: 'holiday' },
+  '2028-10-03': { name: '추석 및 개천절', type: 'holiday' },
+  '2028-10-04': { name: '추석 연휴', type: 'holiday' },
+  '2028-10-05': { name: '대체공휴일', type: 'holiday' },
   '2028-10-09': { name: '한글날', type: 'holiday' },
   '2028-12-25': { name: '성탄절', type: 'holiday' },
 
+  // 2029년
   '2029-01-01': { name: '신정', type: 'holiday' },
   '2029-02-12': { name: '설날 연휴', type: 'holiday' },
   '2029-02-13': { name: '설날', type: 'holiday' },
   '2029-02-14': { name: '설날 연휴', type: 'holiday' },
   '2029-03-01': { name: '삼일절', type: 'holiday' },
   '2029-05-05': { name: '어린이날', type: 'holiday' },
-  '2029-05-07': { name: '어린이날 대체휴일', type: 'holiday' },
+  '2029-05-07': { name: '어린이날 대체공휴일', type: 'holiday' },
   '2029-05-20': { name: '부처님오신날', type: 'holiday' },
+  '2029-05-21': { name: '부처님오신날 대체공휴일', type: 'holiday' },
   '2029-06-06': { name: '현충일', type: 'holiday' },
   '2029-08-15': { name: '광복절', type: 'holiday' },
+  '2029-09-21': { name: '추석 연휴', type: 'holiday' },
+  '2029-09-22': { name: '추석', type: 'holiday' },
+  '2029-09-23': { name: '추석 연휴', type: 'holiday' },
+  '2029-09-24': { name: '추석 대체공휴일', type: 'holiday' },
   '2029-10-03': { name: '개천절', type: 'holiday' },
   '2029-10-09': { name: '한글날', type: 'holiday' },
   '2029-12-25': { name: '성탄절', type: 'holiday' },
 
+  // 2030년
   '2030-01-01': { name: '신정', type: 'holiday' },
   '2030-02-02': { name: '설날 연휴', type: 'holiday' },
   '2030-02-03': { name: '설날', type: 'holiday' },
   '2030-02-04': { name: '설날 연휴', type: 'holiday' },
+  '2030-02-05': { name: '설날 대체공휴일', type: 'holiday' },
   '2030-03-01': { name: '삼일절', type: 'holiday' },
-  '2030-05-06': { name: '어린이날', type: 'holiday' },
-  '2030-05-20': { name: '부처님오신날', type: 'holiday' },
+  '2030-05-05': { name: '어린이날', type: 'holiday' },
+  '2030-05-06': { name: '어린이날 대체공휴일', type: 'holiday' },
+  '2030-05-09': { name: '부처님오신날', type: 'holiday' },
   '2030-06-06': { name: '현충일', type: 'holiday' },
   '2030-08-15': { name: '광복절', type: 'holiday' },
+  '2030-09-11': { name: '추석 연휴', type: 'holiday' },
+  '2030-09-12': { name: '추석', type: 'holiday' },
+  '2030-09-13': { name: '추석 연휴', type: 'holiday' },
   '2030-10-03': { name: '개천절', type: 'holiday' },
   '2030-10-09': { name: '한글날', type: 'holiday' },
   '2030-12-25': { name: '성탄절', type: 'holiday' },
@@ -246,11 +269,6 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
             </button>
           );
         })}
-      </div>
-      <div className="flex items-center justify-center gap-3 mt-2 text-[10px]" style={{ color: theme.inkMuted }}>
-        <span><b style={{ color: '#D32F2F' }}>일</b> 일요일</span>
-        <span><b style={{ color: '#1976D2' }}>토</b> 토요일</span>
-        <span><b style={{ color: '#D32F2F' }}>●</b> 공휴일</span>
       </div>
     </div>
   );

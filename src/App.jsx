@@ -222,6 +222,9 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
           const isSelected = key === selectedKey;
           const isToday = key === todayKey;
           const dotColors = [...new Set(items.map(t => categoryMap[t.categoryId]?.color).filter(Boolean))].slice(0, 3);
+          const holiday = getKoreanHoliday(key);
+          const dayOfWeek = cell.date.getDay();
+          const cellColor = holiday || dayOfWeek === 0 ? '#D32F2F' : dayOfWeek === 6 ? '#1976D2' : theme.ink;
           return (
             <button
               key={i}

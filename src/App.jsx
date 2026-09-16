@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
 import { Plus, ChevronLeft, ChevronRight, Circle, CheckCircle2, Trash2, Pencil, X, Repeat, Tag, ArrowRight, CalendarDays } from 'lucide-react';
@@ -627,6 +627,9 @@ export default function App() {
   const [moveTargetIds, setMoveTargetIds] = useState([]);
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  
+  // 실시간 동기화로 인한 무한 저장을 방지하기 위한 안전장치
+  const isRemoteUpdate = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -641,6 +644,7 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
+  // 초기 데이터 불러오기
   useEffect(() => {
     if (!session?.user) { setData(null); setLoaded(false); return; }
     (async () => {
@@ -662,8 +666,45 @@ export default function App() {
     })();
   }, [session?.user?.id]);
 
+  // 실시간 방송(Realtime) 수신 대기
+  useEffect(() => {
+    if (!session?.user) return;
+
+    const channel = supabase
+      .channel('realtime_planner_data')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // 데이터베이스에서 일어나는 모든 변화(저장, 수정 등)를 감지
+          schema: 'public',
+          table: 'planner_data',
+          filter: `user_id=eq.${session.user.id}`, // 내 데이터만!
+        },
+        (payload) => {
+          if (payload.new && payload.new.data) {
+            // 다른 기기에서 수정한 내용을 받았을 때, 무한 저장을 막고 화면만 새로고침!
+            isRemoteUpdate.current = true;
+            setData(materializeAll(payload.new.data));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id]);
+
+  // 자동 저장
   useEffect(() => {
     if (!loaded || !data || !session?.user) return;
+    
+    // 만약 방금 폰에서 받은 데이터로 화면을 바꾼 거라면 다시 서버로 저장하지 않음! (안전장치)
+    if (isRemoteUpdate.current) {
+      isRemoteUpdate.current = false;
+      return;
+    }
+
     const timer = setTimeout(async () => {
       const { error } = await supabase.from('planner_data').upsert({
         user_id: session.user.id,

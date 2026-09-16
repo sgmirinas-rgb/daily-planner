@@ -18,9 +18,8 @@ const theme = {
 const CATEGORY_COLORS = ['#D32F2F', '#E53935', '#F57C00', '#F9A825', '#388E3C', '#43A047', '#1976D2', '#1E88E5', '#7B1FA2', '#8E24AA', '#00838F', '#6D4C41', '#546E7A', '#000000'];
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+
 /* ---------- Korean public holidays ---------- */
-/* Fixed-date holidays plus lunar-date holidays for 2026-2030.
-   Substitute holidays are included where applicable. */
 const KOREAN_HOLIDAYS = {
   '2026-01-01': { name: '신정', type: 'holiday' },
   '2026-02-16': { name: '설날 연휴', type: 'holiday' },
@@ -100,7 +99,6 @@ const KOREAN_HOLIDAYS = {
 function getKoreanHoliday(key) {
   return KOREAN_HOLIDAYS[key] || null;
 }
-
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&display=swap');`;
 
@@ -202,6 +200,7 @@ function ModalOverlay({ onClose, children }) {
 function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelect, todosByDate, categoryMap }) {
   const cells = useMemo(() => buildMonthMatrix(viewDate.getFullYear(), viewDate.getMonth()), [viewDate]);
   const todayKey = toKey(new Date());
+  
   return (
     <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.line}` }}>
       <div className="flex items-center justify-between mb-3">
@@ -222,9 +221,11 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
           const isSelected = key === selectedKey;
           const isToday = key === todayKey;
           const dotColors = [...new Set(items.map(t => categoryMap[t.categoryId]?.color).filter(Boolean))].slice(0, 3);
+          
           const holiday = getKoreanHoliday(key);
           const dayOfWeek = cell.date.getDay();
           const cellColor = holiday || dayOfWeek === 0 ? '#D32F2F' : dayOfWeek === 6 ? '#1976D2' : theme.ink;
+          
           return (
             <button
               key={i}

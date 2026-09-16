@@ -1,0 +1,11 @@
+{
+  "name": "Daily Planner",
+  "short_name": "Planner",
+  "description": "월간 캘린더 기반 데일리 플래너",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111111",
+  "lang": "ko",
+  "icons": []
+}

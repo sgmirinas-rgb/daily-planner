@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
 import { Plus, ChevronLeft, ChevronRight, Circle, CheckCircle2, Trash2, Pencil, X, Repeat, Tag, ArrowRight, CalendarDays } from 'lucide-react';
@@ -143,6 +143,8 @@ function buildMonthMatrix(year, month) {
   }
   return cells;
 }
+
+/* ---------- routine materialization ---------- */
 
 function routineMatchesDate(routine, date) {
   if (routine.type === 'daily') return true;
@@ -839,7 +841,7 @@ export default function App() {
           <MonthCalendar
             viewDate={viewDate}
             onPrev={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
-            onNext={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; });}
+            onNext={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
             onToday={() => { setViewDate(new Date()); setSelectedKey(toKey(new Date())); }}
             selectedKey={selectedKey}
             onSelect={setSelectedKey}

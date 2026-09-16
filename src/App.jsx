@@ -231,7 +231,7 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
             >
               <span
                 className="text-sm w-6 h-6 flex items-center justify-center rounded-full"
-                style={{ color: isSelected ? theme.accent : dayColor, border: isToday ? `1px solid ${theme.accent}` : '1px solid transparent', fontWeight: isSelected ? 600 : 400 }}
+                style={{ color: isSelected ? theme.accent : cellColor, border: isToday ? `1px solid ${theme.accent}` : '1px solid transparent', fontWeight: isSelected ? 600 : 400 }}
               >
                 {cell.date.getDate()}
               </span>

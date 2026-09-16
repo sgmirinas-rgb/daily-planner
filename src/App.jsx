@@ -638,26 +638,36 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
-  // 1. 처음 앱 켤 때: 서버에서 데이터 가져오기
+    // 1. 처음 앱 켤 때: 서버에서 데이터 가져오기
   useEffect(() => {
     if (!session?.user) { setData(null); setLoaded(false); return; }
+    let cancelled = false;
     (async () => {
       try {
-        const { data: row, error } = await supabase
-          .from('planner_data')
-          .select('data')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-        if (error) throw error;
+        let row = null;
+        for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
+          const { data: fetched, error } = await supabase
+            .from('planner_data')
+            .select('data')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          if (error) throw error;
+          if (fetched) { row = fetched; break; }
+          // 로그인 직후 인증 토큰이 아직 요청에 완전히 반영되지 않아
+          // 정상적으로 저장된 데이터도 빈 결과로 돌아오는 경우가 있어 짧게 재시도
+          await new Promise(r => setTimeout(r, 400));
+        }
+        if (cancelled) return;
         const initial = row?.data || defaultData();
         setData(materializeAll(initial));
       } catch (e) {
         console.error('플래너 데이터 불러오기 실패:', e);
-        setData(materializeAll(defaultData()));
+        if (!cancelled) setData(materializeAll(defaultData()));
       } finally {
-        setLoaded(true);
+        if (!cancelled) setLoaded(true);
       }
     })();
+    return () => { cancelled = true; };
   }, [session?.user?.id]);
 
   // 2. 실시간 동기화: 다른 기기에서 수신된 변경사항 반영

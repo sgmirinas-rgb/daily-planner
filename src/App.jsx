@@ -638,7 +638,7 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
-  // 1. 처음 앱 켤 때: 서버에서 데이터만 조용히 가져오기 (절대 덮어쓰기 금지)
+  // 1. 처음 앱 켤 때: 서버에서 데이터 가져오기
   useEffect(() => {
     if (!session?.user) { setData(null); setLoaded(false); return; }
     (async () => {
@@ -660,7 +660,7 @@ export default function App() {
     })();
   }, [session?.user?.id]);
 
-  // 2. 실시간 동기화: 남이 추가한 데이터를 화면에만 조용히 업데이트
+  // 2. 실시간 동기화: 다른 기기에서 수신된 변경사항 반영
   useEffect(() => {
     if (!session?.user) return;
 
@@ -676,9 +676,7 @@ export default function App() {
         },
         (payload) => {
           if (payload.new && payload.new.data) {
-            // 내가 방금 보낸 저장 요청이 서버를 거쳐 돌아온 거라면 무시
             if (payload.new.data.last_client_id === clientId) return;
-            // 다른 기기에서 보낸 거라면 화면에 반영
             setData(materializeAll(payload.new.data));
           }
         }
@@ -690,19 +688,18 @@ export default function App() {
     };
   }, [session?.user?.id, clientId]);
 
-  // 3. 내가 수정할 때만 호출되는 🌟전용 저장 함수🌟
+  // 3. 수동 저장 함수 (onConflict 옵션 추가로 저장 누락 방지)
   const updateData = (updater) => {
     setData(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       
-      // 화면 업데이트와 동시에 서버에 내 고유 ID를 달아서 덮어쓰기
       if (session?.user) {
         const dataToSave = { ...next, last_client_id: clientId };
         supabase.from('planner_data').upsert({
           user_id: session.user.id,
           data: dataToSave,
           updated_at: new Date().toISOString(),
-        }).then(({ error }) => {
+        }, { onConflict: 'user_id' }).then(({ error }) => {
           if (error) console.error('플래너 데이터 저장 실패:', error);
         });
       }
@@ -710,7 +707,6 @@ export default function App() {
     });
   };
 
-  // 파생 데이터 (읽기 전용)
   const todosByDate = useMemo(() => {
     const map = {};
     (data?.todos || []).forEach(t => { (map[t.date] ||= []).push(t); });
@@ -745,7 +741,6 @@ export default function App() {
 
   const dayTodos = (todosByDate[selectedKey] || []).slice().sort((a, b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1));
 
-  // 이하 모든 변경 작업은 자동 저장이 아닌 수동 저장(updateData)을 거치도록 수정됨
   function addCategory(name, color) { updateData(d => ({ ...d, categories: [...d.categories, { id: uid(), name, color }] })); }
   function deleteCategory(id) {
     updateData(d => ({
@@ -828,7 +823,7 @@ export default function App() {
           onNextDay={() => shiftDay(1)}
           selectMode={selectMode}
           onEnterSelectMode={() => { setSelectMode(true); setSelectedIds(new Set()); }}
-          onExitSelectMode={() => { setSelectMode(false); setSelectedIds(newSet()); }}
+          onExitSelectMode={() => { setSelectMode(false); setSelectedIds(new Set()); }}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onOpenMove={openMoveForSelected}

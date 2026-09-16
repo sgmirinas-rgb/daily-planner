@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
 import { Plus, ChevronLeft, ChevronRight, Circle, CheckCircle2, Trash2, Pencil, X, Repeat, Tag, ArrowRight, CalendarDays } from 'lucide-react';
@@ -19,9 +19,8 @@ const CATEGORY_COLORS = ['#D32F2F', '#E53935', '#F57C00', '#F9A825', '#388E3C', 
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
-/* ---------- Korean public holidays (2026-2030 완벽 반영) ---------- */
+/* ---------- Korean public holidays (2026-2030) ---------- */
 const KOREAN_HOLIDAYS = {
-  // 2026년
   '2026-01-01': { name: '신정', type: 'holiday' },
   '2026-02-16': { name: '설날 연휴', type: 'holiday' },
   '2026-02-17': { name: '설날', type: 'holiday' },
@@ -42,7 +41,6 @@ const KOREAN_HOLIDAYS = {
   '2026-10-09': { name: '한글날', type: 'holiday' },
   '2026-12-25': { name: '성탄절', type: 'holiday' },
 
-  // 2027년
   '2027-01-01': { name: '신정', type: 'holiday' },
   '2027-02-06': { name: '설날 연휴', type: 'holiday' },
   '2027-02-07': { name: '설날', type: 'holiday' },
@@ -62,7 +60,6 @@ const KOREAN_HOLIDAYS = {
   '2027-10-11': { name: '한글날 대체공휴일', type: 'holiday' },
   '2027-12-25': { name: '성탄절', type: 'holiday' },
 
-  // 2028년
   '2028-01-01': { name: '신정', type: 'holiday' },
   '2028-01-26': { name: '설날 연휴', type: 'holiday' },
   '2028-01-27': { name: '설날', type: 'holiday' },
@@ -79,7 +76,6 @@ const KOREAN_HOLIDAYS = {
   '2028-10-09': { name: '한글날', type: 'holiday' },
   '2028-12-25': { name: '성탄절', type: 'holiday' },
 
-  // 2029년
   '2029-01-01': { name: '신정', type: 'holiday' },
   '2029-02-12': { name: '설날 연휴', type: 'holiday' },
   '2029-02-13': { name: '설날', type: 'holiday' },
@@ -99,7 +95,6 @@ const KOREAN_HOLIDAYS = {
   '2029-10-09': { name: '한글날', type: 'holiday' },
   '2029-12-25': { name: '성탄절', type: 'holiday' },
 
-  // 2030년
   '2030-01-01': { name: '신정', type: 'holiday' },
   '2030-02-02': { name: '설날 연휴', type: 'holiday' },
   '2030-02-03': { name: '설날', type: 'holiday' },
@@ -148,8 +143,6 @@ function buildMonthMatrix(year, month) {
   }
   return cells;
 }
-
-/* ---------- routine materialization ---------- */
 
 function routineMatchesDate(routine, date) {
   if (routine.type === 'daily') return true;
@@ -625,12 +618,12 @@ export default function App() {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [editingTodo, setEditingTodo] = useState(null);
   const [moveTargetIds, setMoveTargetIds] = useState([]);
+  
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // 🌟 폰-PC 실시간 동기화 충돌 방지용 고유 ID (내가 보낸 변경사항인지 구분)
+  // 고유 ID: 내가 수정해서 서버로 보낸 메아리인지 남이 보낸 건지 구분
   const clientId = useMemo(() => uid(), []);
-  const isRemoteUpdate = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -645,7 +638,7 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
-  // 초기 데이터 불러오기
+  // 1. 처음 앱 켤 때: 서버에서 데이터만 조용히 가져오기 (절대 덮어쓰기 금지)
   useEffect(() => {
     if (!session?.user) { setData(null); setLoaded(false); return; }
     (async () => {
@@ -667,7 +660,7 @@ export default function App() {
     })();
   }, [session?.user?.id]);
 
-  // 실시간 동기화 (Realtime 수신 대기)
+  // 2. 실시간 동기화: 남이 추가한 데이터를 화면에만 조용히 업데이트
   useEffect(() => {
     if (!session?.user) return;
 
@@ -676,19 +669,16 @@ export default function App() {
       .on(
         'postgres_changes',
         {
-          event: '*', // 변경 감지
+          event: '*',
           schema: 'public',
           table: 'planner_data',
-          filter: `user_id=eq.${session.user.id}`, // 내 것만
+          filter: `user_id=eq.${session.user.id}`,
         },
         (payload) => {
           if (payload.new && payload.new.data) {
-            // 내가 방금 보낸 저장 요청의 메아리라면 무시 (초기화 에러 방지)
-            if (payload.new.data.last_client_id === clientId) {
-              return;
-            }
-            // 폰이나 다른 기기에서 수정한 내용이라면 내 화면 업데이트
-            isRemoteUpdate.current = true;
+            // 내가 방금 보낸 저장 요청이 서버를 거쳐 돌아온 거라면 무시
+            if (payload.new.data.last_client_id === clientId) return;
+            // 다른 기기에서 보낸 거라면 화면에 반영
             setData(materializeAll(payload.new.data));
           }
         }
@@ -700,31 +690,27 @@ export default function App() {
     };
   }, [session?.user?.id, clientId]);
 
-  // 자동 저장
-  useEffect(() => {
-    if (!loaded || !data || !session?.user) return;
-    
-    // 외부(다른 기기)에서 받은 업데이트 때문에 화면이 바뀐 거라면 서버로 다시 덮어쓰지 않음
-    if (isRemoteUpdate.current) {
-      isRemoteUpdate.current = false;
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      // 서버로 보낼 때 "내가 보낸 데이터야!" 라고 clientId 꼬리표를 붙임
-      const dataToSave = { ...data, last_client_id: clientId };
+  // 3. 내가 수정할 때만 호출되는 🌟전용 저장 함수🌟
+  const updateData = (updater) => {
+    setData(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
       
-      const { error } = await supabase.from('planner_data').upsert({
-        user_id: session.user.id,
-        data: dataToSave,
-        updated_at: new Date().toISOString(),
-      });
-      if (error) console.error('플래너 데이터 저장 실패:', error);
-    }, 300); // 0.3초 여유를 두고 저장
-    
-    return () => clearTimeout(timer);
-  }, [data, loaded, session?.user?.id, clientId]);
+      // 화면 업데이트와 동시에 서버에 내 고유 ID를 달아서 덮어쓰기
+      if (session?.user) {
+        const dataToSave = { ...next, last_client_id: clientId };
+        supabase.from('planner_data').upsert({
+          user_id: session.user.id,
+          data: dataToSave,
+          updated_at: new Date().toISOString(),
+        }).then(({ error }) => {
+          if (error) console.error('플래너 데이터 저장 실패:', error);
+        });
+      }
+      return next;
+    });
+  };
 
+  // 파생 데이터 (읽기 전용)
   const todosByDate = useMemo(() => {
     const map = {};
     (data?.todos || []).forEach(t => { (map[t.date] ||= []).push(t); });
@@ -759,9 +745,10 @@ export default function App() {
 
   const dayTodos = (todosByDate[selectedKey] || []).slice().sort((a, b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1));
 
-  function addCategory(name, color) { setData(d => ({ ...d, categories: [...d.categories, { id: uid(), name, color }] })); }
+  // 이하 모든 변경 작업은 자동 저장이 아닌 수동 저장(updateData)을 거치도록 수정됨
+  function addCategory(name, color) { updateData(d => ({ ...d, categories: [...d.categories, { id: uid(), name, color }] })); }
   function deleteCategory(id) {
-    setData(d => ({
+    updateData(d => ({
       ...d,
       categories: d.categories.filter(c => c.id !== id),
       todos: d.todos.map(t => t.categoryId === id ? { ...t, categoryId: null } : t),
@@ -769,20 +756,28 @@ export default function App() {
     }));
   }
 
-  function addOneTimeTodo({ text, categoryId, date }) { setData(d => ({ ...d, todos: [...d.todos, { id: uid(), date, text, categoryId, completed: false }] })); }
+  function addOneTimeTodo({ text, categoryId, date }) { updateData(d => ({ ...d, todos: [...d.todos, { id: uid(), date, text, categoryId, completed: false }] })); }
   function addRoutine(payload) {
     const routine = { id: uid(), ...payload };
-    setData(d => materializeAll({ ...d, routines: [...d.routines, routine] }));
+    updateData(d => materializeAll({ ...d, routines: [...d.routines, routine] }));
   }
   function deleteRoutine(id) {
     if (typeof window !== 'undefined' && !window.confirm('이 루틴과 관련된 모든 일정을 삭제할까요? 되돌릴 수 없어요.')) return;
-    setData(d => ({ ...d, routines: d.routines.filter(r => r.id !== id), todos: d.todos.filter(t => t.routineId !== id) }));
+    updateData(d => ({ ...d, routines: d.routines.filter(r => r.id !== id), todos: d.todos.filter(t => t.routineId !== id) }));
   }
 
-  function toggleComplete(id) { setData(d => ({ ...d, todos: d.todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t) })); }
-  function updateTodoText(id, text, categoryId) { setData(d => ({ ...d, todos: d.todos.map(t => t.id === id ? { ...t, text, categoryId } : t) })); }
-  function deleteTodo(id) { setData(d => ({ ...d, todos: d.todos.filter(t => t.id !== id) })); }
-  function quickDefer(t) { const newKey = addDaysKey(t.date, 1); setData(d => ({ ...d, todos: d.todos.map(x => x.id === t.id ? { ...x, date: newKey } : x) })); }
+  function toggleComplete(id) { updateData(d => ({ ...d, todos: d.todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t) })); }
+  function updateTodoText(id, text, categoryId) { updateData(d => ({ ...d, todos: d.todos.map(t => t.id === id ? { ...t, text, categoryId } : t) })); }
+  function deleteTodo(id) { updateData(d => ({ ...d, todos: d.todos.filter(t => t.id !== id) })); }
+  function quickDefer(t) { const newKey = addDaysKey(t.date, 1); updateData(d => ({ ...d, todos: d.todos.map(x => x.id === t.id ? { ...x, date: newKey } : x) })); }
+
+  function confirmMove(newDateKey) {
+    updateData(d => ({ ...d, todos: d.todos.map(t => moveTargetIds.includes(t.id) ? { ...t, date: newDateKey } : t) }));
+    setShowMoveModal(false);
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setMoveTargetIds([]);
+  }
 
   function shiftDay(delta) {
     const newKey = addDaysKey(selectedKey, delta);
@@ -801,13 +796,6 @@ export default function App() {
     if (ids.length === 0) return;
     setMoveTargetIds(ids);
     setShowMoveModal(true);
-  }
-  function confirmMove(newDateKey) {
-    setData(d => ({ ...d, todos: d.todos.map(t => moveTargetIds.includes(t.id) ? { ...t, date: newDateKey } : t) }));
-    setShowMoveModal(false);
-    setSelectMode(false);
-    setSelectedIds(new Set());
-    setMoveTargetIds([]);
   }
 
   return (
@@ -851,7 +839,7 @@ export default function App() {
           <MonthCalendar
             viewDate={viewDate}
             onPrev={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
-            onNext={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
+            onNext={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; });}
             onToday={() => { setViewDate(new Date()); setSelectedKey(toKey(new Date())); }}
             selectedKey={selectedKey}
             onSelect={setSelectedKey}

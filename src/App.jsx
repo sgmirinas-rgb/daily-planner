@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './supabaseClient';
+import Auth from './Auth';
 import { Plus, ChevronLeft, ChevronRight, Circle, CheckCircle2, Trash2, Pencil, X, Repeat, Tag, ArrowRight, CalendarDays } from 'lucide-react';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 /* ---------- theme & constants ---------- */
 
@@ -596,13 +593,6 @@ function MoveModal({ initialDateKey, onConfirm, onClose }) {
 export default function App() {
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
-  const [session, setSession] = useState(null);
-  const [authLoading, setAuthLoading] = useState(!!supabase);
-  const [authMode, setAuthMode] = useState('login');
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authMessage, setAuthMessage] = useState('');
-  const [syncStatus, setSyncStatus] = useState('');
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedKey, setSelectedKey] = useState(toKey(new Date()));
   const [selectMode, setSelectMode] = useState(false);
@@ -613,81 +603,55 @@ export default function App() {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [editingTodo, setEditingTodo] = useState(null);
   const [moveTargetIds, setMoveTargetIds] = useState([]);
+  const [session, setSession] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    if (!supabase) {
-      setSession(null);
-      try {
-        const raw = localStorage.getItem('planner-data');
-        setData(materializeAll(raw ? JSON.parse(raw) : defaultData()));
-      } catch { setData(defaultData()); }
-      setLoaded(true);
-      return;
-    }
-    let mounted = true;
+    let active = true;
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setSession(session);
-      setAuthLoading(false);
-      if (session) await loadCloudData(session.user.id);
-      else setLoaded(true);
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (active) { setSession(currentSession); setAuthChecked(true); }
     })();
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      setSession(nextSession);
-      setAuthLoading(false);
-      setLoaded(false);
-      if (nextSession) await loadCloudData(nextSession.user.id);
-      else { setData(null); setLoaded(true); }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
+      setAuthChecked(true);
     });
-    return () => { mounted = false; listener.subscription.unsubscribe(); };
+    return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
-  async function loadCloudData(userId) {
-    setSyncStatus('불러오는 중…');
-    const { data: row, error } = await supabase.from('planner_data').select('data').eq('user_id', userId).maybeSingle();
-    if (error) {
-      setAuthMessage('데이터를 불러오지 못했습니다: ' + error.message);
-      setData(defaultData());
-    } else {
-      setData(materializeAll(row?.data || defaultData()));
-    }
-    setLoaded(true);
-    setSyncStatus('동기화됨');
-  }
+  useEffect(() => {
+    if (!session?.user) { setData(null); setLoaded(false); return; }
+    (async () => {
+      try {
+        const { data: row, error } = await supabase
+          .from('planner_data')
+          .select('data')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+        if (error) throw error;
+        const initial = row?.data || defaultData();
+        setData(materializeAll(initial));
+      } catch (e) {
+        console.error('플래너 데이터 불러오기 실패:', e);
+        setData(materializeAll(defaultData()));
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, [session?.user?.id]);
 
   useEffect(() => {
-    if (!loaded || !data) return;
+    if (!loaded || !data || !session?.user) return;
     const timer = setTimeout(async () => {
-      try {
-        localStorage.setItem('planner-data-cache', JSON.stringify(data));
-        if (supabase && session?.user?.id) {
-          setSyncStatus('저장 중…');
-          const { error } = await supabase.from('planner_data').upsert({ user_id: session.user.id, data, updated_at: new Date().toISOString() });
-          if (error) throw error;
-          setSyncStatus('동기화됨');
-        }
-      } catch (e) {
-        setSyncStatus('로컬 저장됨');
-      }
-    }, 500);
+      const { error } = await supabase.from('planner_data').upsert({
+        user_id: session.user.id,
+        data,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) console.error('플래너 데이터 저장 실패:', error);
+    }, 250);
     return () => clearTimeout(timer);
-  }, [data, loaded, session]);
-
-  async function handleAuth(e) {
-    e.preventDefault();
-    setAuthMessage('');
-    if (!supabase) return;
-    const result = authMode === 'login'
-      ? await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword })
-      : await supabase.auth.signUp({ email: authEmail, password: authPassword });
-    if (result.error) setAuthMessage(result.error.message);
-    else setAuthMessage(authMode === 'login' ? '로그인되었습니다.' : '가입 요청이 완료되었습니다. 이메일 인증이 필요한 경우 메일을 확인하세요.');
-  }
-
-  async function handleLogout() {
-    if (supabase) await supabase.auth.signOut();
-  }
+  }, [data, loaded, session?.user?.id]);
 
   const todosByDate = useMemo(() => {
     const map = {};
@@ -701,28 +665,16 @@ export default function App() {
     return map;
   }, [data?.categories]);
 
-  if (supabase && authLoading) {
-    return <div className="min-h-screen flex items-center justify-center" style={{ background: theme.paper }}><p className="text-sm" style={{ color: theme.inkMuted }}>연결 확인 중…</p></div>;
-  }
-
-  if (supabase && !session) {
+  if (!authChecked) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-5" style={{ background: theme.paper }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: theme.paper }}>
         <style>{FONT_IMPORT}</style>
-        <form onSubmit={handleAuth} className="w-full max-w-sm rounded-2xl p-6" style={{ border: `1px solid ${theme.line}`, background: '#fff' }}>
-          <h1 className="text-xl font-semibold mb-2" style={{ fontFamily: '"Source Serif 4", Georgia, serif' }}>Daily Planner</h1>
-          <p className="text-sm mb-5" style={{ color: theme.inkMuted }}>PC와 휴대폰에서 같은 플래너를 사용하세요.</p>
-          <input value={authEmail} onChange={e => setAuthEmail(e.target.value)} type="email" required placeholder="이메일" className="w-full px-3 py-3 rounded-xl mb-2" style={{ border: `1px solid ${theme.line}` }} />
-          <input value={authPassword} onChange={e => setAuthPassword(e.target.value)} type="password" required minLength={6} placeholder="비밀번호 (6자 이상)" className="w-full px-3 py-3 rounded-xl mb-3" style={{ border: `1px solid ${theme.line}` }} />
-          <button className="w-full py-3 rounded-xl text-sm font-medium" style={{ background: theme.accent, color: '#fff' }}>{authMode === 'login' ? '로그인' : '회원가입'}</button>
-          {authMessage && <p className="text-xs mt-3" style={{ color: theme.inkMuted }}>{authMessage}</p>}
-          <button type="button" onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setAuthMessage(''); }} className="w-full mt-4 text-sm" style={{ color: theme.inkMuted }}>
-            {authMode === 'login' ? '처음 사용하시나요? 회원가입' : '이미 계정이 있나요? 로그인'}
-          </button>
-        </form>
+        <p className="text-sm" style={{ color: theme.inkMuted, fontFamily: '"Inter", system-ui, sans-serif' }}>로그인 확인 중…</p>
       </div>
     );
   }
+
+  if (!session) return <Auth />;
 
   if (!loaded || !data) {
     return (
@@ -797,7 +749,10 @@ export default function App() {
             <button onClick={() => setShowCategoryModal(true)} title="카테고리 관리" style={{ color: theme.inkMuted }}><Tag size={18} /></button>
           </div>
         </div>
-        <p style={{ color: theme.inkMuted }} className="text-sm mb-5">날짜를 골라 할 일을 확인하고 정리하세요</p>
+        <div className="flex items-center justify-between mb-2">
+          <p style={{ color: theme.inkMuted }} className="text-sm">날짜를 골라 할 일을 확인하고 정리하세요</p>
+          <button onClick={() => supabase.auth.signOut()} className="text-xs" style={{ color: theme.inkMuted }}>로그아웃</button>
+        </div>
 
         <DayPanel
           dateKey={selectedKey}

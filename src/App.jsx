@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
 import { Plus, ChevronLeft, ChevronRight, Circle, CheckCircle2, Trash2, Pencil, X, Repeat, Tag, ArrowRight, CalendarDays } from 'lucide-react';
@@ -143,8 +143,6 @@ function buildMonthMatrix(year, month) {
   }
   return cells;
 }
-
-/* ---------- routine materialization ---------- */
 
 function routineMatchesDate(routine, date) {
   if (routine.type === 'daily') return true;
@@ -830,7 +828,7 @@ export default function App() {
           onNextDay={() => shiftDay(1)}
           selectMode={selectMode}
           onEnterSelectMode={() => { setSelectMode(true); setSelectedIds(new Set()); }}
-          onExitSelectMode={() => { setSelectMode(false); setSelectedIds(new Set()); }}
+          onExitSelectMode={() => { setSelectMode(false); setSelectedIds(newSet()); }}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onOpenMove={openMoveForSelected}

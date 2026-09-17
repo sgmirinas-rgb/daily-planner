@@ -638,11 +638,12 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
-    // 1. 처음 앱 켤 때: 서버에서 데이터 가져오기
+  // 1. 처음 앱 켤 때 + 탭이 다시 화면에 보일 때: 서버에서 데이터 가져오기
   useEffect(() => {
     if (!session?.user) { setData(null); setLoaded(false); return; }
     let cancelled = false;
-    (async () => {
+
+    async function loadFromServer() {
       try {
         let row = null;
         for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
@@ -653,8 +654,6 @@ export default function App() {
             .maybeSingle();
           if (error) throw error;
           if (fetched) { row = fetched; break; }
-          // 로그인 직후 인증 토큰이 아직 요청에 완전히 반영되지 않아
-          // 정상적으로 저장된 데이터도 빈 결과로 돌아오는 경우가 있어 짧게 재시도
           await new Promise(r => setTimeout(r, 400));
         }
         if (cancelled) return;
@@ -666,8 +665,22 @@ export default function App() {
       } finally {
         if (!cancelled) setLoaded(true);
       }
-    })();
-    return () => { cancelled = true; };
+    }
+
+    loadFromServer();
+
+    // 모바일에서 탭을 전환했다 돌아오는 등, 브라우저가 페이지를 진짜로
+    // 다시 불러오지 않고 그대로 보여주기만 하는 경우를 대비해,
+    // 탭이 다시 보일 때마다 최신 데이터를 한 번 더 가져온다.
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') loadFromServer();
+    }
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [session?.user?.id]);
 
   // 2. 실시간 동기화: 다른 기기에서 수신된 변경사항 반영

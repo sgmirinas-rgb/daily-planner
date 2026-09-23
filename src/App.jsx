@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
-import { Plus, ChevronLeft, ChevronRight, Circle, CheckCircle2, Trash2, Pencil, X, Repeat, Tag, ArrowRight, CalendarDays } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Circle, CheckCircle2, Trash2, Pencil, X, Repeat, Tag, ArrowRight, CalendarDays, GripVertical } from 'lucide-react';
 
 /* ---------- theme & constants ---------- */
 
@@ -286,37 +286,28 @@ function DayPanel({
   const label = `${dateObj.getMonth() + 1}월 ${dateObj.getDate()}일 (${WEEKDAY[dateObj.getDay()]})`;
   const incompleteCount = todos.filter(t => !t.completed).length;
 
-  // 길게 누르기(long-press) 기반 순서 바꾸기
-  const dragState = useRef({ id: null, index: null, startY: 0, timer: null, active: false, offsetY: 0 });
+  // 손잡이(오른쪽 아이콘)를 눌렀을 때만 순서 바꾸기 시작
+  const dragState = useRef({ id: null, index: null, startY: 0, active: false, offsetY: 0 });
   const [dragId, setDragId] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
   const ROW_HEIGHT = 60;
 
-  function onRowPointerDown(e, id, index) {
+  function onHandlePointerDown(e, id, index) {
     if (selectMode) return;
+    e.preventDefault();
     const el = e.currentTarget;
-    const pointerId = e.pointerId;
     dragState.current.id = id;
     dragState.current.index = index;
     dragState.current.startY = e.clientY;
-    dragState.current.active = false;
-    dragState.current.timer = setTimeout(() => {
-      dragState.current.active = true;
-      setDragId(id);
-      setDragOffset(0);
-      try { el.setPointerCapture(pointerId); } catch (err) {}
-      if (navigator.vibrate) navigator.vibrate(12);
-    }, 320);
+    dragState.current.active = true;
+    dragState.current.offsetY = 0;
+    setDragId(id);
+    setDragOffset(0);
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    if (navigator.vibrate) navigator.vibrate(12);
   }
 
-  function onRowPointerMove(e) {
-    if (dragState.current.timer && !dragState.current.active) {
-      if (Math.abs(e.clientY - dragState.current.startY) > 6) {
-        clearTimeout(dragState.current.timer);
-        dragState.current.timer = null;
-      }
-      return;
-    }
+  function onHandlePointerMove(e) {
     if (!dragState.current.active) return;
     e.preventDefault();
     const offset = e.clientY - dragState.current.startY;
@@ -325,17 +316,15 @@ function DayPanel({
   }
 
   function endDrag() {
-    if (dragState.current.timer) { clearTimeout(dragState.current.timer); dragState.current.timer = null; }
-    if (dragState.current.active) {
-      const steps = Math.round(dragState.current.offsetY / ROW_HEIGHT);
-      const from = dragState.current.index;
-      let to = Math.max(0, Math.min(todos.length - 1, from + steps));
-      if (to !== from) {
-        const ids = todos.map(t => t.id);
-        const [moved] = ids.splice(from, 1);
-        ids.splice(to, 0, moved);
-        onReorder(ids);
-      }
+    if (!dragState.current.active) return;
+    const steps = Math.round(dragState.current.offsetY / ROW_HEIGHT);
+    const from = dragState.current.index;
+    let to = Math.max(0, Math.min(todos.length - 1, from + steps));
+    if (to !== from) {
+      const ids = todos.map(t => t.id);
+      const [moved] = ids.splice(from, 1);
+      ids.splice(to, 0, moved);
+      onReorder(ids);
     }
     dragState.current.active = false;
     dragState.current.id = null;
@@ -379,7 +368,7 @@ function DayPanel({
       )}
 
       {!selectMode && todos.length > 1 && (
-        <p className="text-xs mb-2" style={{ color: theme.inkMuted }}>항목을 꾹 누르면 위아래로 옮길 수 있어요.</p>
+        <p className="text-xs mb-2" style={{ color: theme.inkMuted }}>오른쪽 손잡이(⠿)를 누른 채 위아래로 움직이면 순서를 바꿀 수 있어요.</p>
       )}
 
       <div className="space-y-2">
@@ -393,11 +382,7 @@ function DayPanel({
           return (
             <div
               key={t.id}
-              onPointerDown={selectMode ? undefined : (e) => onRowPointerDown(e, t.id, index)}
-              onPointerMove={selectMode ? undefined : onRowPointerMove}
-              onPointerUp={selectMode ? undefined : endDrag}
-              onPointerCancel={selectMode ? undefined : endDrag}
-              className="flex items-center gap-3 rounded-xl px-3 py-3 select-none"
+              className="flex items-center gap-3 rounded-xl px-3 py-3"
               style={{
                 background: theme.card,
                 border: `1px solid ${theme.line}`,
@@ -405,7 +390,6 @@ function DayPanel({
                 transform: isDragging ? `translateY(${dragOffset}px) scale(1.02)` : 'none',
                 boxShadow: isDragging ? '0 10px 24px rgba(0,0,0,0.18)' : 'none',
                 zIndex: isDragging ? 20 : 1,
-                touchAction: isDragging ? 'none' : 'auto',
                 transition: isDragging ? 'none' : 'transform 0.15s ease',
               }}
             >
@@ -429,6 +413,15 @@ function DayPanel({
                   <button onClick={() => onChooseDate(t)} title="날짜 선택해서 미루기" style={{ color: theme.inkMuted }}><CalendarDays size={16} /></button>
                   <button onClick={() => onEdit(t)} title="수정" style={{ color: theme.inkMuted }}><Pencil size={16} /></button>
                   <button onClick={() => onDelete(t.id)} title="삭제" style={{ color: theme.inkMuted }}><Trash2 size={16} /></button>
+                  <span
+                    onPointerDown={(e) => onHandlePointerDown(e, t.id, index)}
+                    onPointerMove={onHandlePointerMove}
+                    onPointerUp={endDrag}
+                    onPointerCancel={endDrag}
+                    style={{ color: theme.inkMuted, touchAction: 'none', cursor: 'grab', padding: '4px 2px' }}
+                  >
+                    <GripVertical size={16} />
+                  </span>
                 </div>
               )}
             </div>

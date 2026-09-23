@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
 import { Plus, ChevronLeft, ChevronRight, Circle, CheckCircle2, Trash2, Pencil, X, Repeat, Tag, ArrowRight, CalendarDays } from 'lucide-react';
@@ -236,7 +236,6 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
           const items = todosByDate[key] || [];
           const isSelected = key === selectedKey;
           const isToday = key === todayKey;
-          const dotColors = [...new Set(items.map(t => categoryMap[t.categoryId]?.color).filter(Boolean))].slice(0, 3);
           
           const holiday = getKoreanHoliday(key);
           const dayOfWeek = cell.date.getDay();
@@ -255,9 +254,16 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
               >
                 {cell.date.getDate()}
               </span>
-              <span className="flex gap-0.5 h-1.5 items-center">
-                {dotColors.map(c => (<span key={c} className="w-1 h-1 rounded-full" style={{ background: c }} />))}
+              <span className="flex gap-1 h-3 items-center justify-center">
                 {holiday && <span title={holiday.name} className="text-[8px] leading-none font-medium" style={{ color: '#D32F2F' }}>●</span>}
+                {items.length > 0 && (
+                  <span
+                    className="text-[10px] leading-none font-semibold rounded-full px-1"
+                    style={{ color: isSelected ? '#fff' : theme.inkMuted, background: isSelected ? theme.accent : 'transparent' }}
+                  >
+                    {items.length}
+                  </span>
+                )}
               </span>
             </button>
           );
@@ -271,7 +277,7 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
 
 function DayPanel({
   dateKey, todos, categoryMap,
-  onAddClick, onToggle, onEdit, onDelete, onQuickDefer, onChooseDate,
+  onAddClick, onToggle, onEdit, onDelete, onQuickDefer, onChooseDate, onReorder,
   onPrevDay, onNextDay,
   selectMode, onEnterSelectMode, onExitSelectMode,
   selectedIds, onToggleSelect, onOpenMove, onDeferAllIncomplete,
@@ -279,6 +285,63 @@ function DayPanel({
   const dateObj = fromKey(dateKey);
   const label = `${dateObj.getMonth() + 1}월 ${dateObj.getDate()}일 (${WEEKDAY[dateObj.getDay()]})`;
   const incompleteCount = todos.filter(t => !t.completed).length;
+
+  // 길게 누르기(long-press) 기반 순서 바꾸기
+  const dragState = useRef({ id: null, index: null, startY: 0, timer: null, active: false, offsetY: 0 });
+  const [dragId, setDragId] = useState(null);
+  const [dragOffset, setDragOffset] = useState(0);
+  const ROW_HEIGHT = 60;
+
+  function onRowPointerDown(e, id, index) {
+    if (selectMode) return;
+    const el = e.currentTarget;
+    const pointerId = e.pointerId;
+    dragState.current.id = id;
+    dragState.current.index = index;
+    dragState.current.startY = e.clientY;
+    dragState.current.active = false;
+    dragState.current.timer = setTimeout(() => {
+      dragState.current.active = true;
+      setDragId(id);
+      setDragOffset(0);
+      try { el.setPointerCapture(pointerId); } catch (err) {}
+      if (navigator.vibrate) navigator.vibrate(12);
+    }, 320);
+  }
+
+  function onRowPointerMove(e) {
+    if (dragState.current.timer && !dragState.current.active) {
+      if (Math.abs(e.clientY - dragState.current.startY) > 6) {
+        clearTimeout(dragState.current.timer);
+        dragState.current.timer = null;
+      }
+      return;
+    }
+    if (!dragState.current.active) return;
+    e.preventDefault();
+    const offset = e.clientY - dragState.current.startY;
+    dragState.current.offsetY = offset;
+    setDragOffset(offset);
+  }
+
+  function endDrag() {
+    if (dragState.current.timer) { clearTimeout(dragState.current.timer); dragState.current.timer = null; }
+    if (dragState.current.active) {
+      const steps = Math.round(dragState.current.offsetY / ROW_HEIGHT);
+      const from = dragState.current.index;
+      let to = Math.max(0, Math.min(todos.length - 1, from + steps));
+      if (to !== from) {
+        const ids = todos.map(t => t.id);
+        const [moved] = ids.splice(from, 1);
+        ids.splice(to, 0, moved);
+        onReorder(ids);
+      }
+    }
+    dragState.current.active = false;
+    dragState.current.id = null;
+    setDragId(null);
+    setDragOffset(0);
+  }
 
   return (
     <div>
@@ -315,15 +378,37 @@ function DayPanel({
         </div>
       )}
 
+      {!selectMode && todos.length > 1 && (
+        <p className="text-xs mb-2" style={{ color: theme.inkMuted }}>항목을 꾹 누르면 위아래로 옮길 수 있어요.</p>
+      )}
+
       <div className="space-y-2">
         {todos.length === 0 && (
           <p className="text-sm py-8 text-center" style={{ color: theme.inkMuted }}>이 날은 할 일이 없어요. 아래에서 추가해보세요.</p>
         )}
-        {todos.map(t => {
+        {todos.map((t, index) => {
           const cat = categoryMap[t.categoryId];
           const checked = selectedIds.has(t.id);
+          const isDragging = dragId === t.id;
           return (
-            <div key={t.id} className="flex items-center gap-3 rounded-xl px-3 py-3" style={{ background: theme.card, border: `1px solid ${theme.line}` }}>
+            <div
+              key={t.id}
+              onPointerDown={selectMode ? undefined : (e) => onRowPointerDown(e, t.id, index)}
+              onPointerMove={selectMode ? undefined : onRowPointerMove}
+              onPointerUp={selectMode ? undefined : endDrag}
+              onPointerCancel={selectMode ? undefined : endDrag}
+              className="flex items-center gap-3 rounded-xl px-3 py-3 select-none"
+              style={{
+                background: theme.card,
+                border: `1px solid ${theme.line}`,
+                position: 'relative',
+                transform: isDragging ? `translateY(${dragOffset}px) scale(1.02)` : 'none',
+                boxShadow: isDragging ? '0 10px 24px rgba(0,0,0,0.18)' : 'none',
+                zIndex: isDragging ? 20 : 1,
+                touchAction: isDragging ? 'none' : 'auto',
+                transition: isDragging ? 'none' : 'transform 0.15s ease',
+              }}
+            >
               {selectMode ? (
                 <button onClick={() => onToggleSelect(t.id)}>
                   {checked ? <CheckCircle2 size={20} style={{ color: theme.accent }} /> : <Circle size={20} style={{ color: theme.inkMuted }} />}
@@ -335,7 +420,7 @@ function DayPanel({
               )}
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat ? cat.color : '#999' }} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm truncate" style={{ color: t.completed ? theme.inkMuted : theme.ink, textDecoration: t.completed ? 'line-through' : 'none' }}>{t.text}</p>
+                <p className="text-sm break-words" style={{ color: t.completed ? theme.inkMuted : theme.ink, textDecoration: t.completed ? 'line-through' : 'none' }}>{t.text}</p>
                 <p className="text-xs" style={{ color: theme.inkMuted }}>{cat ? cat.name : '미분류'}{t.routineId ? ' · 반복' : ''}</p>
               </div>
               {!selectMode && (
@@ -401,6 +486,7 @@ function AddSheet({ categories, defaultCategoryId, selectedDateKey, editingTodo,
       <input
         value={text}
         onChange={e => setText(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
         placeholder="무엇을 할까요?"
         className="w-full text-sm rounded-xl px-3 py-2.5 mb-4 outline-none"
         style={{ border: `1px solid ${theme.line}` }}
@@ -508,6 +594,7 @@ function CategoryModal({ categories, onAdd, onDelete, onClose }) {
       <input
         value={name}
         onChange={e => setName(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter' && name.trim()) { e.preventDefault(); onAdd(name.trim(), color); setName(''); } }}
         placeholder="카테고리 이름"
         className="w-full text-sm rounded-xl px-3 py-2.5 mb-3 outline-none"
         style={{ border: `1px solid ${theme.line}` }}
@@ -654,6 +741,8 @@ export default function App() {
             .maybeSingle();
           if (error) throw error;
           if (fetched) { row = fetched; break; }
+          // 로그인 직후 인증 토큰이 아직 요청에 완전히 반영되지 않아
+          // 정상적으로 저장된 데이터도 빈 결과로 돌아오는 경우가 있어 짧게 재시도
           await new Promise(r => setTimeout(r, 400));
         }
         if (cancelled) return;
@@ -762,7 +851,10 @@ export default function App() {
     );
   }
 
-  const dayTodos = (todosByDate[selectedKey] || []).slice().sort((a, b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1));
+  const dayTodos = (todosByDate[selectedKey] || [])
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => (a.t.order ?? a.i) - (b.t.order ?? b.i))
+    .map(x => x.t);
 
   function addCategory(name, color) { updateData(d => ({ ...d, categories: [...d.categories, { id: uid(), name, color }] })); }
   function deleteCategory(id) {
@@ -788,6 +880,11 @@ export default function App() {
   function updateTodoText(id, text, categoryId) { updateData(d => ({ ...d, todos: d.todos.map(t => t.id === id ? { ...t, text, categoryId } : t) })); }
   function deleteTodo(id) { updateData(d => ({ ...d, todos: d.todos.filter(t => t.id !== id) })); }
   function quickDefer(t) { const newKey = addDaysKey(t.date, 1); updateData(d => ({ ...d, todos: d.todos.map(x => x.id === t.id ? { ...x, date: newKey } : x) })); }
+  function reorderTodos(orderedIds) {
+    const orderMap = {};
+    orderedIds.forEach((id, i) => { orderMap[id] = i; });
+    updateData(d => ({ ...d, todos: d.todos.map(t => orderMap[t.id] !== undefined ? { ...t, order: orderMap[t.id] } : t) }));
+  }
 
   function confirmMove(newDateKey) {
     updateData(d => ({ ...d, todos: d.todos.map(t => moveTargetIds.includes(t.id) ? { ...t, date: newDateKey } : t) }));
@@ -819,7 +916,7 @@ export default function App() {
   return (
     <div className="min-h-screen" style={{ background: theme.paper, fontFamily: '"Inter", system-ui, sans-serif' }}>
       <style>{FONT_IMPORT}</style>
-      <div className="max-w-md mx-auto px-4 pt-6 pb-10">
+      <div className="max-w-md md:max-w-5xl mx-auto px-4 pt-6 pb-10">
         <div className="flex items-baseline justify-between mb-1">
           <h1 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-2xl font-semibold">데일리플래너</h1>
           <div className="flex gap-4">
@@ -832,38 +929,43 @@ export default function App() {
           <button onClick={() => supabase.auth.signOut()} className="text-xs" style={{ color: theme.inkMuted }}>로그아웃</button>
         </div>
 
-        <DayPanel
-          dateKey={selectedKey}
-          todos={dayTodos}
-          categoryMap={categoryMap}
-          onAddClick={() => { setEditingTodo(null); setShowAdd(true); }}
-          onToggle={toggleComplete}
-          onEdit={(t) => { setEditingTodo(t); setShowAdd(true); }}
-          onDelete={deleteTodo}
-          onQuickDefer={quickDefer}
-          onChooseDate={chooseDateForSingle}
-          onPrevDay={() => shiftDay(-1)}
-          onNextDay={() => shiftDay(1)}
-          selectMode={selectMode}
-          onEnterSelectMode={() => { setSelectMode(true); setSelectedIds(new Set()); }}
-          onExitSelectMode={() => { setSelectMode(false); setSelectedIds(new Set()); }}
-          selectedIds={selectedIds}
-          onToggleSelect={toggleSelect}
-          onOpenMove={openMoveForSelected}
-          onDeferAllIncomplete={deferAllIncomplete}
-        />
+        <div className="md:flex md:gap-6 md:items-start">
+          <div className="md:flex-1 md:min-w-0">
+            <DayPanel
+              dateKey={selectedKey}
+              todos={dayTodos}
+              categoryMap={categoryMap}
+              onAddClick={() => { setEditingTodo(null); setShowAdd(true); }}
+              onToggle={toggleComplete}
+              onEdit={(t) => { setEditingTodo(t); setShowAdd(true); }}
+              onDelete={deleteTodo}
+              onQuickDefer={quickDefer}
+              onChooseDate={chooseDateForSingle}
+              onReorder={reorderTodos}
+              onPrevDay={() => shiftDay(-1)}
+              onNextDay={() => shiftDay(1)}
+              selectMode={selectMode}
+              onEnterSelectMode={() => { setSelectMode(true); setSelectedIds(new Set()); }}
+              onExitSelectMode={() => { setSelectMode(false); setSelectedIds(new Set()); }}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onOpenMove={openMoveForSelected}
+              onDeferAllIncomplete={deferAllIncomplete}
+            />
+          </div>
 
-        <div className="mt-6">
-          <MonthCalendar
-            viewDate={viewDate}
-            onPrev={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
-            onNext={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
-            onToday={() => { setViewDate(new Date()); setSelectedKey(toKey(new Date())); }}
-            selectedKey={selectedKey}
-            onSelect={setSelectedKey}
-            todosByDate={todosByDate}
-            categoryMap={categoryMap}
-          />
+          <div className="md:order-first md:w-80 md:shrink-0 mt-6 md:mt-0">
+            <MonthCalendar
+              viewDate={viewDate}
+              onPrev={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
+              onNext={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
+              onToday={() => { setViewDate(new Date()); setSelectedKey(toKey(new Date())); }}
+              selectedKey={selectedKey}
+              onSelect={setSelectedKey}
+              todosByDate={todosByDate}
+              categoryMap={categoryMap}
+            />
+          </div>
         </div>
       </div>
 

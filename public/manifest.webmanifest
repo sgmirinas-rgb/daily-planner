@@ -1,6 +1,6 @@
 {
-  "name": "Daily Planner",
-  "short_name": "Planner",
+  "name": "PSG TodoList",
+  "short_name": "PSG Todo",
   "description": "월간 캘린더 기반 데일리 플래너",
   "start_url": "/",
   "display": "standalone",

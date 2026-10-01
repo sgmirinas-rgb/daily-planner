@@ -75,43 +75,6 @@ const KOREAN_HOLIDAYS = {
   '2028-10-05': { name: '대체공휴일', type: 'holiday' },
   '2028-10-09': { name: '한글날', type: 'holiday' },
   '2028-12-25': { name: '성탄절', type: 'holiday' },
-
-  '2029-01-01': { name: '신정', type: 'holiday' },
-  '2029-02-12': { name: '설날 연휴', type: 'holiday' },
-  '2029-02-13': { name: '설날', type: 'holiday' },
-  '2029-02-14': { name: '설날 연휴', type: 'holiday' },
-  '2029-03-01': { name: '삼일절', type: 'holiday' },
-  '2029-05-05': { name: '어린이날', type: 'holiday' },
-  '2029-05-07': { name: '어린이날 대체공휴일', type: 'holiday' },
-  '2029-05-20': { name: '부처님오신날', type: 'holiday' },
-  '2029-05-21': { name: '부처님오신날 대체공휴일', type: 'holiday' },
-  '2029-06-06': { name: '현충일', type: 'holiday' },
-  '2029-08-15': { name: '광복절', type: 'holiday' },
-  '2029-09-21': { name: '추석 연휴', type: 'holiday' },
-  '2029-09-22': { name: '추석', type: 'holiday' },
-  '2029-09-23': { name: '추석 연휴', type: 'holiday' },
-  '2029-09-24': { name: '추석 대체공휴일', type: 'holiday' },
-  '2029-10-03': { name: '개천절', type: 'holiday' },
-  '2029-10-09': { name: '한글날', type: 'holiday' },
-  '2029-12-25': { name: '성탄절', type: 'holiday' },
-
-  '2030-01-01': { name: '신정', type: 'holiday' },
-  '2030-02-02': { name: '설날 연휴', type: 'holiday' },
-  '2030-02-03': { name: '설날', type: 'holiday' },
-  '2030-02-04': { name: '설날 연휴', type: 'holiday' },
-  '2030-02-05': { name: '설날 대체공휴일', type: 'holiday' },
-  '2030-03-01': { name: '삼일절', type: 'holiday' },
-  '2030-05-05': { name: '어린이날', type: 'holiday' },
-  '2030-05-06': { name: '어린이날 대체공휴일', type: 'holiday' },
-  '2030-05-09': { name: '부처님오신날', type: 'holiday' },
-  '2030-06-06': { name: '현충일', type: 'holiday' },
-  '2030-08-15': { name: '광복절', type: 'holiday' },
-  '2030-09-11': { name: '추석 연휴', type: 'holiday' },
-  '2030-09-12': { name: '추석', type: 'holiday' },
-  '2030-09-13': { name: '추석 연휴', type: 'holiday' },
-  '2030-10-03': { name: '개천절', type: 'holiday' },
-  '2030-10-09': { name: '한글날', type: 'holiday' },
-  '2030-12-25': { name: '성탄절', type: 'holiday' },
 };
 
 function getKoreanHoliday(key) {
@@ -229,7 +192,7 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
   const todayKey = toKey(new Date());
   
   return (
-    <div className="rounded-2xl p-4 sticky top-4" style={{ background: theme.card, border: `1px solid ${theme.line}` }}>
+    <div className="rounded-2xl p-4 shadow-sm" style={{ background: theme.card, border: `1px solid ${theme.line}` }}>
       <div className="flex items-center justify-between mb-3">
         <button onClick={onPrev} style={{ color: theme.inkMuted }}><ChevronLeft size={18} /></button>
         <div className="flex items-center gap-2">
@@ -308,7 +271,7 @@ function DayPanel({
   const dragState = useRef({ id: null, index: null, startY: 0, active: false, offsetY: 0 });
   const [dragId, setDragId] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
-  const ROW_HEIGHT = 60;
+  const ROW_HEIGHT = 44; // 드래그 계산용 높이 축소
 
   function onHandlePointerDown(e, id, index) {
     if (selectMode) return;
@@ -352,7 +315,7 @@ function DayPanel({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <div className="flex items-center gap-1">
           <button onClick={onPrevDay} style={{ color: theme.inkMuted }}><ChevronLeft size={18} /></button>
           <h2 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-lg font-semibold whitespace-nowrap">{label}</h2>
@@ -360,24 +323,24 @@ function DayPanel({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {!selectMode && incompleteCount > 0 && (
-            <button onClick={onDeferAllIncomplete} className="text-xs px-2.5 py-1 rounded-full" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>
+            <button onClick={onDeferAllIncomplete} className="text-[11px] px-2.5 py-1 rounded-full font-medium shadow-sm" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>
               미완료 {incompleteCount}개 미루기
             </button>
           )}
           {!selectMode ? (
-            <button onClick={onEnterSelectMode} className="text-xs px-2.5 py-1 rounded-full" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>선택</button>
+            <button onClick={onEnterSelectMode} className="text-[11px] px-2.5 py-1 rounded-full font-medium shadow-sm" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>선택</button>
           ) : (
-            <button onClick={onExitSelectMode} className="text-xs px-2.5 py-1 rounded-full" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>취소</button>
+            <button onClick={onExitSelectMode} className="text-[11px] px-2.5 py-1 rounded-full font-medium shadow-sm" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>취소</button>
           )}
         </div>
       </div>
 
       {selectMode && (
-        <div className="flex items-center justify-between mb-3 rounded-xl px-3 py-2" style={{ background: theme.accentSoft }}>
-          <span className="text-sm" style={{ color: theme.ink }}>{selectedIds.size}개 선택됨</span>
+        <div className="flex items-center justify-between mb-3 rounded-lg px-3 py-2" style={{ background: theme.accentSoft }}>
+          <span className="text-sm font-medium" style={{ color: theme.ink }}>{selectedIds.size}개 선택됨</span>
           <button
             onClick={onOpenMove}
-            className={`text-sm font-medium ${selectedIds.size === 0 ? 'opacity-40 pointer-events-none' : ''}`}
+            className={`text-sm font-bold ${selectedIds.size === 0 ? 'opacity-40 pointer-events-none' : ''}`}
             style={{ color: theme.accent }}
           >
             날짜 이동
@@ -385,8 +348,8 @@ function DayPanel({
         </div>
       )}
 
-      {/* 할 일 항목 간 간격을 최대한 좁게 설정 (space-y-0.5 및 패딩 축소) */}
-      <div className="space-y-0.5">
+      {/* [변경점] 할 일 항목 간 간격을 극한으로 좁힘 (gap-[2px], py-1.5) */}
+      <div className="flex flex-col gap-[3px]">
         {todos.length === 0 && (
           <p className="text-sm py-8 text-center" style={{ color: theme.inkMuted }}>이 날은 할 일이 없어요. 아래에서 추가해보세요.</p>
         )}
@@ -397,7 +360,7 @@ function DayPanel({
           return (
             <div
               key={t.id}
-              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2"
+              className="flex items-center gap-2 rounded-[6px] px-2.5 py-1.5"
               style={{
                 background: theme.card,
                 border: `1px solid ${theme.line}`,
@@ -410,24 +373,24 @@ function DayPanel({
             >
               {selectMode ? (
                 <button onClick={() => onToggleSelect(t.id)}>
-                  {checked ? <CheckCircle2 size={18} style={{ color: theme.accent }} /> : <Circle size={18} style={{ color: theme.inkMuted }} />}
+                  {checked ? <CheckCircle2 size={16} style={{ color: theme.accent }} /> : <Circle size={16} style={{ color: theme.inkMuted }} />}
                 </button>
               ) : (
                 <button onClick={() => onToggle(t.id)}>
-                  {t.completed ? <CheckCircle2 size={18} style={{ color: theme.accent }} /> : <Circle size={18} style={{ color: theme.inkMuted }} />}
+                  {t.completed ? <CheckCircle2 size={16} style={{ color: theme.accent }} /> : <Circle size={16} style={{ color: theme.inkMuted }} />}
                 </button>
               )}
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat ? cat.color : '#999' }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm break-words leading-tight" style={{ color: t.completed ? theme.inkMuted : theme.ink, textDecoration: t.completed ? 'line-through' : 'none' }}>{t.text}</p>
-                {t.routineId && <p className="text-[10px]" style={{ color: theme.inkMuted }}>반복</p>}
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cat ? cat.color : '#999' }} />
+              <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                <p className="text-[13px] break-words leading-tight" style={{ color: t.completed ? theme.inkMuted : theme.ink, textDecoration: t.completed ? 'line-through' : 'none' }}>{t.text}</p>
+                {t.routineId && <span className="text-[9px] px-1 rounded-sm bg-gray-100" style={{ color: theme.inkMuted }}>반복</span>}
               </div>
               {!selectMode && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => onQuickDefer(t)} title="내일로 미루기" style={{ color: theme.inkMuted }}><ArrowRight size={15} /></button>
-                  <button onClick={() => onChooseDate(t)} title="날짜 선택해서 미루기" style={{ color: theme.inkMuted }}><CalendarDays size={15} /></button>
-                  <button onClick={() => onEdit(t)} title="수정" style={{ color: theme.inkMuted }}><Pencil size={15} /></button>
-                  <button onClick={() => onDelete(t.id)} title="삭제" style={{ color: theme.inkMuted }}><Trash2 size={15} /></button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button onClick={() => onQuickDefer(t)} title="내일로 미루기" style={{ color: theme.inkMuted }}><ArrowRight size={14} /></button>
+                  <button onClick={() => onChooseDate(t)} title="날짜 선택" style={{ color: theme.inkMuted }}><CalendarDays size={14} /></button>
+                  <button onClick={() => onEdit(t)} title="수정" style={{ color: theme.inkMuted }}><Pencil size={14} /></button>
+                  <button onClick={() => onDelete(t.id)} title="삭제" style={{ color: theme.inkMuted }}><Trash2 size={14} /></button>
                   <span
                     onPointerDown={(e) => onHandlePointerDown(e, t.id, index)}
                     onPointerMove={onHandlePointerMove}
@@ -435,7 +398,7 @@ function DayPanel({
                     onPointerCancel={endDrag}
                     style={{ color: theme.inkMuted, touchAction: 'none', cursor: 'grab', padding: '2px' }}
                   >
-                    <GripVertical size={15} />
+                    <GripVertical size={14} />
                   </span>
                 </div>
               )}
@@ -445,7 +408,7 @@ function DayPanel({
       </div>
 
       {!selectMode && (
-        <button onClick={onAddClick} className="mt-3 w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2" style={{ background: theme.accent, color: '#fff' }}>
+        <button onClick={onAddClick} className="mt-4 w-full py-2.5 rounded-[8px] text-[13px] font-medium flex items-center justify-center gap-1.5" style={{ background: theme.accent, color: '#fff' }}>
           <Plus size={16} /> 할 일 추가
         </button>
       )}
@@ -717,7 +680,6 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // 고유 ID: 내가 수정해서 서버로 보낸 메아리인지 남이 보낸 건지 구분
   const clientId = useMemo(() => uid(), []);
 
   useEffect(() => {
@@ -733,7 +695,6 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
-  // 1. 처음 앱 켤 때 + 탭이 다시 화면에 보일 때: 서버에서 데이터 가져오기
   useEffect(() => {
     if (!session?.user) { setData(null); setLoaded(false); return; }
     let cancelled = false;
@@ -763,32 +724,19 @@ export default function App() {
     }
 
     loadFromServer();
-
-    function handleVisibility() {
-      if (document.visibilityState === 'visible') loadFromServer();
-    }
+    function handleVisibility() { if (document.visibilityState === 'visible') loadFromServer(); }
     document.addEventListener('visibilitychange', handleVisibility);
 
-    return () => {
-      cancelled = true;
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', handleVisibility); };
   }, [session?.user?.id]);
 
-  // 2. 실시간 동기화: 다른 기기에서 수신된 변경사항 반영
   useEffect(() => {
     if (!session?.user) return;
-
     const channel = supabase
       .channel('realtime_planner_data')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'planner_data',
-          filter: `user_id=eq.${session.user.id}`,
-        },
+        { event: '*', schema: 'public', table: 'planner_data', filter: `user_id=eq.${session.user.id}` },
         (payload) => {
           if (payload.new && payload.new.data) {
             if (payload.new.data.last_client_id === clientId) return;
@@ -797,24 +745,18 @@ export default function App() {
         }
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [session?.user?.id, clientId]);
 
-  // 3. 수동 저장 함수 (onConflict 옵션 추가로 저장 누락 방지)
   const updateData = (updater) => {
     setData(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      
       if (session?.user) {
         const dataToSave = { ...next, last_client_id: clientId };
-        supabase.from('planner_data').upsert({
-          user_id: session.user.id,
-          data: dataToSave,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' }).then(({ error }) => {
+        supabase.from('planner_data').upsert(
+          { user_id: session.user.id, data: dataToSave, updated_at: new Date().toISOString() }, 
+          { onConflict: 'user_id' }
+        ).then(({ error }) => {
           if (error) console.error('플래너 데이터 저장 실패:', error);
         });
       }
@@ -920,10 +862,7 @@ export default function App() {
     setViewDate(new Date(d.getFullYear(), d.getMonth(), 1));
   }
   function chooseDateForSingle(t) { setMoveTargetIds([t.id]); setShowMoveModal(true); }
-
-  function toggleSelect(id) {
-    setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
-  }
+  function toggleSelect(id) { setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; }); }
   function openMoveForSelected() { setMoveTargetIds(Array.from(selectedIds)); setShowMoveModal(true); }
   function deferAllIncomplete() {
     const ids = dayTodos.filter(t => !t.completed).map(t => t.id);
@@ -935,33 +874,27 @@ export default function App() {
   return (
     <div className="min-h-screen" style={{ background: theme.paper, fontFamily: '"Inter", system-ui, sans-serif' }}>
       <style>{FONT_IMPORT}</style>
-      <div className="max-w-md md:max-w-5xl mx-auto px-4 pt-6 pb-10">
+      <div className="max-w-md md:max-w-5xl mx-auto px-4 pt-6 pb-12">
         
-        {/* PSG TodoList 제목을 할 일 항목 영역 중앙에 오도록 배치 및 모바일/PC 대응 헤더 정렬 */}
-        <div className="relative flex items-center justify-between mb-4">
-          {/* 빈 공간 균형 유지용 좌측 숨김 요소 (PC 레이아웃 기준 달력 너비와 대략 맞춤) */}
-          <div className="hidden md:block md:w-80 shrink-0"></div>
-
-          {/* 1. PSG TodoList 제목을 중앙 영역으로 배치 */}
-          <div className="flex-1 text-center md:text-center">
-            <h1 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-2xl font-semibold inline-block">
-              PSG TodoList
-            </h1>
-          </div>
-
-          {/* 우측 상단 유틸 버튼 그룹 */}
+        {/* ================= 모바일 전용 헤더 (PC에서는 숨김) ================= */}
+        <div className="flex md:hidden items-baseline justify-between mb-5 gap-4">
+          <h1 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-2xl font-semibold">
+            PSG TodoList
+          </h1>
           <div className="flex items-center gap-4 shrink-0">
-            <button onClick={() => setShowRoutineModal(true)} title="루틴 관리" style={{ color: theme.inkMuted }}><Repeat size={18} /></button>
-            <button onClick={() => setShowCategoryModal(true)} title="카테고리 관리" style={{ color: theme.inkMuted }}><Tag size={18} /></button>
+            <button onClick={() => setShowRoutineModal(true)} style={{ color: theme.inkMuted }}><Repeat size={18} /></button>
+            <button onClick={() => setShowCategoryModal(true)} style={{ color: theme.inkMuted }}><Tag size={18} /></button>
             <button onClick={() => supabase.auth.signOut()} className="text-xs" style={{ color: theme.inkMuted }}>로그아웃</button>
           </div>
         </div>
 
-        {/* 3. 달력 위치 고정 및 좌측 배치 구조 (md:flex 레이아웃, md:order-first로 달력을 왼쪽 상단 고정) */}
-        <div className="md:flex md:gap-8 md:items-start">
+        {/* ================= 메인 레이아웃 (PC/모바일 구조 분리) ================= */}
+        <div className="flex flex-col md:flex-row md:items-start md:gap-10">
           
-          {/* 달력 영역: 왼쪽 상단 고정 (sticky top-4 적용) */}
-          <div className="md:order-first md:w-80 md:shrink-0 mb-6 md:mb-0">
+          {/* [변경점 2] 달력 영역: 
+              - 모바일(flex-col): order-2로 할 일 목록 밑으로 내려감
+              - PC(md:flex-row): md:order-1로 맨 왼쪽에 배치, sticky top-6로 상단 고정 */}
+          <div className="order-2 md:order-1 md:w-[320px] md:shrink-0 mt-8 md:mt-0 sticky top-6">
             <MonthCalendar
               viewDate={viewDate}
               onPrev={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
@@ -974,8 +907,29 @@ export default function App() {
             />
           </div>
 
-          {/* 할 일 목록 영역 */}
-          <div className="md:flex-1 md:min-w-0">
+          {/* 할 일 목록 영역: 
+              - 모바일: order-1로 달력보다 위에 위치
+              - PC: md:order-2로 달력의 오른쪽에 위치 */}
+          <div className="order-1 md:order-2 flex-1 min-w-0 w-full">
+            
+            {/* [변경점 1] PC 전용 헤더 (모바일에서는 숨김):
+                오른쪽(DayPanel) 영역을 기준으로 제목이 완벽하게 가운데 정렬되도록 절대 좌표(absolute) 사용 */}
+            <div className="hidden md:flex relative items-center justify-between mb-8 pb-2 border-b border-gray-100">
+              <h1 
+                style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} 
+                className="absolute left-1/2 -translate-x-1/2 text-2xl font-semibold whitespace-nowrap"
+              >
+                PSG TodoList
+              </h1>
+              <div className="flex-1"></div> {/* 좌측 균형용 빈 공간 */}
+              <div className="flex items-center gap-4 shrink-0 z-10 bg-white">
+                <button onClick={() => setShowRoutineModal(true)} title="루틴 관리" style={{ color: theme.inkMuted }}><Repeat size={18} /></button>
+                <button onClick={() => setShowCategoryModal(true)} title="카테고리 관리" style={{ color: theme.inkMuted }}><Tag size={18} /></button>
+                <button onClick={() => supabase.auth.signOut()} className="text-xs font-medium" style={{ color: theme.inkMuted }}>로그아웃</button>
+              </div>
+            </div>
+
+            {/* 할 일 패널 (간격 좁아짐 반영 완료) */}
             <DayPanel
               dateKey={selectedKey}
               todos={dayTodos}
@@ -1043,4 +997,3 @@ export default function App() {
     </div>
   );
 }
-```[cite: 1]

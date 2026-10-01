@@ -348,7 +348,7 @@ function DayPanel({
         </div>
       )}
 
-      {/* [변경점] 할 일 항목 간 간격을 극한으로 좁힘 (gap-[2px], py-1.5) */}
+      {/* 할 일 항목 간 간격을 극한으로 좁힘 (gap-[2px], py-1.5) */}
       <div className="flex flex-col gap-[3px]">
         {todos.length === 0 && (
           <p className="text-sm py-8 text-center" style={{ color: theme.inkMuted }}>이 날은 할 일이 없어요. 아래에서 추가해보세요.</p>
@@ -891,10 +891,10 @@ export default function App() {
         {/* ================= 메인 레이아웃 (PC/모바일 구조 분리) ================= */}
         <div className="flex flex-col md:flex-row md:items-start md:gap-10">
           
-          {/* [변경점 2] 달력 영역: 
-              - 모바일(flex-col): order-2로 할 일 목록 밑으로 내려감
-              - PC(md:flex-row): md:order-1로 맨 왼쪽에 배치, sticky top-6로 상단 고정 */}
-          <div className="order-2 md:order-1 md:w-[320px] md:shrink-0 mt-8 md:mt-0 sticky top-6">
+          {/* 달력 영역: 
+              - 모바일(flex-col): 할 일 목록 밑으로
+              - PC(md:flex-row): md:mt-[72px] 와 top-[72px]를 주어 할 일 날짜 제목과 같은 선상에서 시작하도록 조정 */}
+          <div className="order-2 md:order-1 md:w-[320px] md:shrink-0 mt-8 md:mt-[72px] sticky top-[72px]">
             <MonthCalendar
               viewDate={viewDate}
               onPrev={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
@@ -907,13 +907,11 @@ export default function App() {
             />
           </div>
 
-          {/* 할 일 목록 영역: 
-              - 모바일: order-1로 달력보다 위에 위치
-              - PC: md:order-2로 달력의 오른쪽에 위치 */}
+          {/* 할 일 목록 영역 */}
           <div className="order-1 md:order-2 flex-1 min-w-0 w-full">
             
-            {/* [변경점 1] PC 전용 헤더 (모바일에서는 숨김):
-                오른쪽(DayPanel) 영역을 기준으로 제목이 완벽하게 가운데 정렬되도록 절대 좌표(absolute) 사용 */}
+            {/* PC 전용 헤더 (모바일에서는 숨김):
+                오른쪽(DayPanel) 영역을 기준으로 제목이 완벽하게 가운데 정렬되도록 설정 */}
             <div className="hidden md:flex relative items-center justify-between mb-8 pb-2 border-b border-gray-100">
               <h1 
                 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} 
@@ -929,7 +927,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* 할 일 패널 (간격 좁아짐 반영 완료) */}
+            {/* 할 일 패널 */}
             <DayPanel
               dateKey={selectedKey}
               todos={dayTodos}

@@ -128,6 +128,17 @@ function fromKey(key) { const [y, m, d] = key.split('-').map(Number); return new
 function addDaysKey(key, n) { const d = fromKey(key); d.setDate(d.getDate() + n); return toKey(d); }
 function uid() { return Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4); }
 
+function minOrderForDate(todos, dateKey) {
+  const items = todos.filter(t => t.date === dateKey);
+  if (items.length === 0) return 0;
+  return Math.min(...items.map((t, i) => t.order ?? i)) - 1;
+}
+function maxOrderForDate(todos, dateKey) {
+  const items = todos.filter(t => t.date === dateKey);
+  if (items.length === 0) return 0;
+  return Math.max(...items.map((t, i) => t.order ?? i)) + 1;
+}
+
 function buildMonthMatrix(year, month) {
   const first = new Date(year, month, 1);
   const startWeekday = first.getDay();
@@ -256,14 +267,22 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
               </span>
               <span className="flex gap-1 h-3 items-center justify-center">
                 {holiday && <span title={holiday.name} className="text-[8px] leading-none font-medium" style={{ color: '#D32F2F' }}>●</span>}
-                {items.length > 0 && (
-                  <span
-                    className="text-[10px] leading-none font-semibold rounded-full px-1"
-                    style={{ color: isSelected ? '#fff' : theme.inkMuted, background: isSelected ? theme.accent : 'transparent' }}
-                  >
-                    {items.length}
-                  </span>
-                )}
+                {items.length > 0 && (() => {
+                  const remaining = items.filter(t => !t.completed).length;
+                  const allDone = remaining === 0;
+                  return (
+                    <span
+                      className="text-[10px] leading-none font-semibold rounded-full px-1"
+                      style={{
+                        color: isSelected ? '#fff' : theme.inkMuted,
+                        background: isSelected ? theme.accent : 'transparent',
+                        textDecoration: allDone ? 'line-through' : 'none',
+                      }}
+                    >
+                      {allDone ? items.length : remaining}
+                    </span>
+                  );
+                })()}
               </span>
             </button>
           );
@@ -367,10 +386,6 @@ function DayPanel({
         </div>
       )}
 
-      {!selectMode && todos.length > 1 && (
-        <p className="text-xs mb-2" style={{ color: theme.inkMuted }}>오른쪽 손잡이(⠿)를 누른 채 위아래로 움직이면 순서를 바꿀 수 있어요.</p>
-      )}
-
       <div className="space-y-2">
         {todos.length === 0 && (
           <p className="text-sm py-8 text-center" style={{ color: theme.inkMuted }}>이 날은 할 일이 없어요. 아래에서 추가해보세요.</p>
@@ -385,7 +400,6 @@ function DayPanel({
               className="flex items-center gap-3 rounded-xl px-3 py-3"
               style={{
                 background: theme.card,
-                border: `1px solid ${theme.line}`,
                 position: 'relative',
                 transform: isDragging ? `translateY(${dragOffset}px) scale(1.02)` : 'none',
                 boxShadow: isDragging ? '0 10px 24px rgba(0,0,0,0.18)' : 'none',
@@ -405,7 +419,7 @@ function DayPanel({
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat ? cat.color : '#999' }} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm break-words" style={{ color: t.completed ? theme.inkMuted : theme.ink, textDecoration: t.completed ? 'line-through' : 'none' }}>{t.text}</p>
-                <p className="text-xs" style={{ color: theme.inkMuted }}>{cat ? cat.name : '미분류'}{t.routineId ? ' · 반복' : ''}</p>
+                {t.routineId && <p className="text-xs" style={{ color: theme.inkMuted }}>반복</p>}
               </div>
               {!selectMode && (
                 <div className="flex items-center gap-2.5 shrink-0">
@@ -859,7 +873,9 @@ export default function App() {
     }));
   }
 
-  function addOneTimeTodo({ text, categoryId, date }) { updateData(d => ({ ...d, todos: [...d.todos, { id: uid(), date, text, categoryId, completed: false }] })); }
+  function addOneTimeTodo({ text, categoryId, date }) {
+    updateData(d => ({ ...d, todos: [...d.todos, { id: uid(), date, text, categoryId, completed: false, order: minOrderForDate(d.todos, date) }] }));
+  }
   function addRoutine(payload) {
     const routine = { id: uid(), ...payload };
     updateData(d => materializeAll({ ...d, routines: [...d.routines, routine] }));
@@ -872,7 +888,13 @@ export default function App() {
   function toggleComplete(id) { updateData(d => ({ ...d, todos: d.todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t) })); }
   function updateTodoText(id, text, categoryId) { updateData(d => ({ ...d, todos: d.todos.map(t => t.id === id ? { ...t, text, categoryId } : t) })); }
   function deleteTodo(id) { updateData(d => ({ ...d, todos: d.todos.filter(t => t.id !== id) })); }
-  function quickDefer(t) { const newKey = addDaysKey(t.date, 1); updateData(d => ({ ...d, todos: d.todos.map(x => x.id === t.id ? { ...x, date: newKey } : x) })); }
+  function quickDefer(t) {
+    const newKey = addDaysKey(t.date, 1);
+    updateData(d => {
+      const newOrder = maxOrderForDate(d.todos, newKey);
+      return { ...d, todos: d.todos.map(x => x.id === t.id ? { ...x, date: newKey, order: newOrder } : x) };
+    });
+  }
   function reorderTodos(orderedIds) {
     const orderMap = {};
     orderedIds.forEach((id, i) => { orderMap[id] = i; });
@@ -880,7 +902,15 @@ export default function App() {
   }
 
   function confirmMove(newDateKey) {
-    updateData(d => ({ ...d, todos: d.todos.map(t => moveTargetIds.includes(t.id) ? { ...t, date: newDateKey } : t) }));
+    updateData(d => {
+      let nextOrder = maxOrderForDate(d.todos, newDateKey);
+      const orderAssignment = {};
+      moveTargetIds.forEach(id => { nextOrder += 1; orderAssignment[id] = nextOrder; });
+      return {
+        ...d,
+        todos: d.todos.map(t => orderAssignment[t.id] !== undefined ? { ...t, date: newDateKey, order: orderAssignment[t.id] } : t),
+      };
+    });
     setShowMoveModal(false);
     setSelectMode(false);
     setSelectedIds(new Set());
@@ -910,19 +940,16 @@ export default function App() {
     <div className="min-h-screen" style={{ background: theme.paper, fontFamily: '"Inter", system-ui, sans-serif' }}>
       <style>{FONT_IMPORT}</style>
       <div className="max-w-md md:max-w-5xl mx-auto px-4 pt-6 pb-10">
-        <div className="flex items-baseline justify-between mb-1">
+        <div className="flex items-baseline justify-between mb-6">
           <h1 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-2xl font-semibold">데일리플래너</h1>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-4">
             <button onClick={() => setShowRoutineModal(true)} title="루틴 관리" style={{ color: theme.inkMuted }}><Repeat size={18} /></button>
             <button onClick={() => setShowCategoryModal(true)} title="카테고리 관리" style={{ color: theme.inkMuted }}><Tag size={18} /></button>
+            <button onClick={() => supabase.auth.signOut()} className="text-xs" style={{ color: theme.inkMuted }}>로그아웃</button>
           </div>
         </div>
-        <div className="flex items-center justify-between mb-2">
-          <p style={{ color: theme.inkMuted }} className="text-sm">날짜를 골라 할 일을 확인하고 정리하세요</p>
-          <button onClick={() => supabase.auth.signOut()} className="text-xs" style={{ color: theme.inkMuted }}>로그아웃</button>
-        </div>
 
-        <div className="md:flex md:gap-6 md:items-start">
+        <div className="md:flex md:gap-6 md:items-center">
           <div className="md:flex-1 md:min-w-0">
             <DayPanel
               dateKey={selectedKey}

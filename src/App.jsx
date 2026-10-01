@@ -75,43 +75,6 @@ const KOREAN_HOLIDAYS = {
   '2028-10-05': { name: '대체공휴일', type: 'holiday' },
   '2028-10-09': { name: '한글날', type: 'holiday' },
   '2028-12-25': { name: '성탄절', type: 'holiday' },
-
-  '2029-01-01': { name: '신정', type: 'holiday' },
-  '2029-02-12': { name: '설날 연휴', type: 'holiday' },
-  '2029-02-13': { name: '설날', type: 'holiday' },
-  '2029-02-14': { name: '설날 연휴', type: 'holiday' },
-  '2029-03-01': { name: '삼일절', type: 'holiday' },
-  '2029-05-05': { name: '어린이날', type: 'holiday' },
-  '2029-05-07': { name: '어린이날 대체공휴일', type: 'holiday' },
-  '2029-05-20': { name: '부처님오신날', type: 'holiday' },
-  '2029-05-21': { name: '부처님오신날 대체공휴일', type: 'holiday' },
-  '2029-06-06': { name: '현충일', type: 'holiday' },
-  '2029-08-15': { name: '광복절', type: 'holiday' },
-  '2029-09-21': { name: '추석 연휴', type: 'holiday' },
-  '2029-09-22': { name: '추석', type: 'holiday' },
-  '2029-09-23': { name: '추석 연휴', type: 'holiday' },
-  '2029-09-24': { name: '추석 대체공휴일', type: 'holiday' },
-  '2029-10-03': { name: '개천절', type: 'holiday' },
-  '2029-10-09': { name: '한글날', type: 'holiday' },
-  '2029-12-25': { name: '성탄절', type: 'holiday' },
-
-  '2030-01-01': { name: '신정', type: 'holiday' },
-  '2030-02-02': { name: '설날 연휴', type: 'holiday' },
-  '2030-02-03': { name: '설날', type: 'holiday' },
-  '2030-02-04': { name: '설날 연휴', type: 'holiday' },
-  '2030-02-05': { name: '설날 대체공휴일', type: 'holiday' },
-  '2030-03-01': { name: '삼일절', type: 'holiday' },
-  '2030-05-05': { name: '어린이날', type: 'holiday' },
-  '2030-05-06': { name: '어린이날 대체공휴일', type: 'holiday' },
-  '2030-05-09': { name: '부처님오신날', type: 'holiday' },
-  '2030-06-06': { name: '현충일', type: 'holiday' },
-  '2030-08-15': { name: '광복절', type: 'holiday' },
-  '2030-09-11': { name: '추석 연휴', type: 'holiday' },
-  '2030-09-12': { name: '추석', type: 'holiday' },
-  '2030-09-13': { name: '추석 연휴', type: 'holiday' },
-  '2030-10-03': { name: '개천절', type: 'holiday' },
-  '2030-10-09': { name: '한글날', type: 'holiday' },
-  '2030-12-25': { name: '성탄절', type: 'holiday' },
 };
 
 function getKoreanHoliday(key) {
@@ -162,9 +125,18 @@ function routineMatchesDate(routine, date) {
   return false;
 }
 
-function materializeRoutines(routines, todos, fromDate, toDate, skips = []) {
-  const existingKeys = new Set(todos.filter(t => t.routineId).map(t => `${t.routineId}__${t.date}`));
-  const skipKeys = new Set(skips);
+/* [버그 수정] 삭제/이동된 루틴 좀비 방지 로직 */
+function materializeRoutines(routines, todos, excludedKeys, fromDate, toDate) {
+  const existingKeys = new Set(excludedKeys || []);
+  
+  // 현재 존재하는(또는 다른 날로 이동된) 반복 일정들의 '원본 날짜(sourceDate)'를 수집
+  todos.forEach(t => {
+    if (t.routineId) {
+      const sDate = t.sourceDate || t.date;
+      existingKeys.add(`${t.routineId}__${sDate}`);
+    }
+  });
+
   const additions = [];
   routines.forEach(routine => {
     const startBound = routine.startDate && fromKey(routine.startDate) > fromDate ? fromKey(routine.startDate) : fromDate;
@@ -173,8 +145,18 @@ function materializeRoutines(routines, todos, fromDate, toDate, skips = []) {
       if (routineMatchesDate(routine, cursor)) {
         const key = toKey(cursor);
         const uniqueKey = `${routine.id}__${key}`;
-        if (!existingKeys.has(uniqueKey) && !skipKeys.has(uniqueKey)) {
-          additions.push({ id: uid(), date: key, text: routine.text, categoryId: routine.categoryId, completed: false, routineId: routine.id });
+        
+        // 이미 생성된 적 있거나 블랙리스트(휴지통)에 있는 날짜면 스킵
+        if (!existingKeys.has(uniqueKey)) {
+          additions.push({ 
+            id: uid(), 
+            date: key, 
+            sourceDate: key, // 원본 생성 날짜 기억
+            text: routine.text, 
+            categoryId: routine.categoryId, 
+            completed: false, 
+            routineId: routine.id 
+          });
           existingKeys.add(uniqueKey);
         }
       }
@@ -188,7 +170,11 @@ function materializeAll(d) {
   const today = new Date();
   const from = new Date(today); from.setDate(from.getDate() - 90);
   const to = new Date(today); to.setDate(to.getDate() + 365);
-  return { ...d, todos: materializeRoutines(d.routines, d.todos, from, to, d.routineSkips || []) };
+  return { 
+    ...d, 
+    excludedRoutineKeys: d.excludedRoutineKeys || [], // 블랙리스트 안전장치
+    todos: materializeRoutines(d.routines, d.todos, d.excludedRoutineKeys, from, to) 
+  };
 }
 
 function defaultData() {
@@ -200,7 +186,7 @@ function defaultData() {
     ],
     todos: [],
     routines: [],
-    routineSkips: [],
+    excludedRoutineKeys: [], // 삭제된 루틴 일정들의 아이디 저장소
   };
 }
 
@@ -231,7 +217,7 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
   const todayKey = toKey(new Date());
   
   return (
-    <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.line}` }}>
+    <div className="rounded-2xl p-4 shadow-sm" style={{ background: theme.card, border: `1px solid ${theme.line}` }}>
       <div className="flex items-center justify-between mb-3">
         <button onClick={onPrev} style={{ color: theme.inkMuted }}><ChevronLeft size={18} /></button>
         <div className="flex items-center gap-2">
@@ -307,11 +293,10 @@ function DayPanel({
   const label = `${dateObj.getMonth() + 1}월 ${dateObj.getDate()}일 (${WEEKDAY[dateObj.getDay()]})`;
   const incompleteCount = todos.filter(t => !t.completed).length;
 
-  // 손잡이(오른쪽 아이콘)를 눌렀을 때만 순서 바꾸기 시작
   const dragState = useRef({ id: null, index: null, startY: 0, active: false, offsetY: 0 });
   const [dragId, setDragId] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
-  const ROW_HEIGHT = 60;
+  const ROW_HEIGHT = 44; 
 
   function onHandlePointerDown(e, id, index) {
     if (selectMode) return;
@@ -355,7 +340,7 @@ function DayPanel({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <div className="flex items-center gap-1">
           <button onClick={onPrevDay} style={{ color: theme.inkMuted }}><ChevronLeft size={18} /></button>
           <h2 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-lg font-semibold whitespace-nowrap">{label}</h2>
@@ -363,24 +348,24 @@ function DayPanel({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {!selectMode && incompleteCount > 0 && (
-            <button onClick={onDeferAllIncomplete} className="text-xs px-2.5 py-1 rounded-full" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>
+            <button onClick={onDeferAllIncomplete} className="text-[11px] px-2.5 py-1 rounded-full font-medium shadow-sm" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>
               미완료 {incompleteCount}개 미루기
             </button>
           )}
           {!selectMode ? (
-            <button onClick={onEnterSelectMode} className="text-xs px-2.5 py-1 rounded-full" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>선택</button>
+            <button onClick={onEnterSelectMode} className="text-[11px] px-2.5 py-1 rounded-full font-medium shadow-sm" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>선택</button>
           ) : (
-            <button onClick={onExitSelectMode} className="text-xs px-2.5 py-1 rounded-full" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>취소</button>
+            <button onClick={onExitSelectMode} className="text-[11px] px-2.5 py-1 rounded-full font-medium shadow-sm" style={{ border: `1px solid ${theme.line}`, color: theme.inkMuted }}>취소</button>
           )}
         </div>
       </div>
 
       {selectMode && (
-        <div className="flex items-center justify-between mb-3 rounded-xl px-3 py-2" style={{ background: theme.accentSoft }}>
-          <span className="text-sm" style={{ color: theme.ink }}>{selectedIds.size}개 선택됨</span>
+        <div className="flex items-center justify-between mb-3 rounded-lg px-3 py-2" style={{ background: theme.accentSoft }}>
+          <span className="text-sm font-medium" style={{ color: theme.ink }}>{selectedIds.size}개 선택됨</span>
           <button
             onClick={onOpenMove}
-            className={`text-sm font-medium ${selectedIds.size === 0 ? 'opacity-40 pointer-events-none' : ''}`}
+            className={`text-sm font-bold ${selectedIds.size === 0 ? 'opacity-40 pointer-events-none' : ''}`}
             style={{ color: theme.accent }}
           >
             날짜 이동
@@ -388,7 +373,8 @@ function DayPanel({
         </div>
       )}
 
-      <div>
+      {/* 할 일 항목 간격 최소화 유지 */}
+      <div className="flex flex-col gap-[3px]">
         {todos.length === 0 && (
           <p className="text-sm py-8 text-center" style={{ color: theme.inkMuted }}>이 날은 할 일이 없어요. 아래에서 추가해보세요.</p>
         )}
@@ -399,12 +385,11 @@ function DayPanel({
           return (
             <div
               key={t.id}
-              className="flex items-center gap-3 px-3 py-2.5"
+              className="flex items-center gap-2 rounded-[6px] px-2.5 py-1.5"
               style={{
                 background: theme.card,
+                border: `1px solid ${theme.line}`,
                 position: 'relative',
-                borderTop: index > 0 ? `1px solid ${theme.line}` : 'none',
-                borderRadius: isDragging ? '12px' : 0,
                 transform: isDragging ? `translateY(${dragOffset}px) scale(1.02)` : 'none',
                 boxShadow: isDragging ? '0 10px 24px rgba(0,0,0,0.18)' : 'none',
                 zIndex: isDragging ? 20 : 1,
@@ -413,32 +398,32 @@ function DayPanel({
             >
               {selectMode ? (
                 <button onClick={() => onToggleSelect(t.id)}>
-                  {checked ? <CheckCircle2 size={20} style={{ color: theme.accent }} /> : <Circle size={20} style={{ color: theme.inkMuted }} />}
+                  {checked ? <CheckCircle2 size={16} style={{ color: theme.accent }} /> : <Circle size={16} style={{ color: theme.inkMuted }} />}
                 </button>
               ) : (
                 <button onClick={() => onToggle(t.id)}>
-                  {t.completed ? <CheckCircle2 size={20} style={{ color: theme.accent }} /> : <Circle size={20} style={{ color: theme.inkMuted }} />}
+                  {t.completed ? <CheckCircle2 size={16} style={{ color: theme.accent }} /> : <Circle size={16} style={{ color: theme.inkMuted }} />}
                 </button>
               )}
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat ? cat.color : '#999' }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm break-words" style={{ color: t.completed ? theme.inkMuted : theme.ink, textDecoration: t.completed ? 'line-through' : 'none' }}>{t.text}</p>
-                {t.routineId && <p className="text-xs" style={{ color: theme.inkMuted }}>반복</p>}
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cat ? cat.color : '#999' }} />
+              <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                <p className="text-[13px] break-words leading-tight" style={{ color: t.completed ? theme.inkMuted : theme.ink, textDecoration: t.completed ? 'line-through' : 'none' }}>{t.text}</p>
+                {t.routineId && <span className="text-[9px] px-1 rounded-sm bg-gray-100" style={{ color: theme.inkMuted }}>반복</span>}
               </div>
               {!selectMode && (
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <button onClick={() => onQuickDefer(t)} title="내일로 미루기" style={{ color: theme.inkMuted }}><ArrowRight size={16} /></button>
-                  <button onClick={() => onChooseDate(t)} title="날짜 선택해서 미루기" style={{ color: theme.inkMuted }}><CalendarDays size={16} /></button>
-                  <button onClick={() => onEdit(t)} title="수정" style={{ color: theme.inkMuted }}><Pencil size={16} /></button>
-                  <button onClick={() => onDelete(t.id)} title="삭제" style={{ color: theme.inkMuted }}><Trash2 size={16} /></button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button onClick={() => onQuickDefer(t)} title="내일로 미루기" style={{ color: theme.inkMuted }}><ArrowRight size={14} /></button>
+                  <button onClick={() => onChooseDate(t)} title="날짜 선택" style={{ color: theme.inkMuted }}><CalendarDays size={14} /></button>
+                  <button onClick={() => onEdit(t)} title="수정" style={{ color: theme.inkMuted }}><Pencil size={14} /></button>
+                  <button onClick={() => onDelete(t.id)} title="삭제" style={{ color: theme.inkMuted }}><Trash2 size={14} /></button>
                   <span
                     onPointerDown={(e) => onHandlePointerDown(e, t.id, index)}
                     onPointerMove={onHandlePointerMove}
                     onPointerUp={endDrag}
                     onPointerCancel={endDrag}
-                    style={{ color: theme.inkMuted, touchAction: 'none', cursor: 'grab', padding: '4px 2px' }}
+                    style={{ color: theme.inkMuted, touchAction: 'none', cursor: 'grab', padding: '2px' }}
                   >
-                    <GripVertical size={16} />
+                    <GripVertical size={14} />
                   </span>
                 </div>
               )}
@@ -448,7 +433,7 @@ function DayPanel({
       </div>
 
       {!selectMode && (
-        <button onClick={onAddClick} className="mt-4 w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2" style={{ background: theme.accent, color: '#fff' }}>
+        <button onClick={onAddClick} className="mt-4 w-full py-2.5 rounded-[8px] text-[13px] font-medium flex items-center justify-center gap-1.5" style={{ background: theme.accent, color: '#fff' }}>
           <Plus size={16} /> 할 일 추가
         </button>
       )}
@@ -720,7 +705,6 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // 고유 ID: 내가 수정해서 서버로 보낸 메아리인지 남이 보낸 건지 구분
   const clientId = useMemo(() => uid(), []);
 
   useEffect(() => {
@@ -736,7 +720,6 @@ export default function App() {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
-  // 1. 처음 앱 켤 때 + 탭이 다시 화면에 보일 때: 서버에서 데이터 가져오기
   useEffect(() => {
     if (!session?.user) { setData(null); setLoaded(false); return; }
     let cancelled = false;
@@ -752,8 +735,6 @@ export default function App() {
             .maybeSingle();
           if (error) throw error;
           if (fetched) { row = fetched; break; }
-          // 로그인 직후 인증 토큰이 아직 요청에 완전히 반영되지 않아
-          // 정상적으로 저장된 데이터도 빈 결과로 돌아오는 경우가 있어 짧게 재시도
           await new Promise(r => setTimeout(r, 400));
         }
         if (cancelled) return;
@@ -768,35 +749,19 @@ export default function App() {
     }
 
     loadFromServer();
-
-    // 모바일에서 탭을 전환했다 돌아오는 등, 브라우저가 페이지를 진짜로
-    // 다시 불러오지 않고 그대로 보여주기만 하는 경우를 대비해,
-    // 탭이 다시 보일 때마다 최신 데이터를 한 번 더 가져온다.
-    function handleVisibility() {
-      if (document.visibilityState === 'visible') loadFromServer();
-    }
+    function handleVisibility() { if (document.visibilityState === 'visible') loadFromServer(); }
     document.addEventListener('visibilitychange', handleVisibility);
 
-    return () => {
-      cancelled = true;
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', handleVisibility); };
   }, [session?.user?.id]);
 
-  // 2. 실시간 동기화: 다른 기기에서 수신된 변경사항 반영
   useEffect(() => {
     if (!session?.user) return;
-
     const channel = supabase
       .channel('realtime_planner_data')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'planner_data',
-          filter: `user_id=eq.${session.user.id}`,
-        },
+        { event: '*', schema: 'public', table: 'planner_data', filter: `user_id=eq.${session.user.id}` },
         (payload) => {
           if (payload.new && payload.new.data) {
             if (payload.new.data.last_client_id === clientId) return;
@@ -805,24 +770,18 @@ export default function App() {
         }
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [session?.user?.id, clientId]);
 
-  // 3. 수동 저장 함수 (onConflict 옵션 추가로 저장 누락 방지)
   const updateData = (updater) => {
     setData(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      
       if (session?.user) {
         const dataToSave = { ...next, last_client_id: clientId };
-        supabase.from('planner_data').upsert({
-          user_id: session.user.id,
-          data: dataToSave,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' }).then(({ error }) => {
+        supabase.from('planner_data').upsert(
+          { user_id: session.user.id, data: dataToSave, updated_at: new Date().toISOString() }, 
+          { onConflict: 'user_id' }
+        ).then(({ error }) => {
           if (error) console.error('플래너 데이터 저장 실패:', error);
         });
       }
@@ -884,62 +843,77 @@ export default function App() {
     const routine = { id: uid(), ...payload };
     updateData(d => materializeAll({ ...d, routines: [...d.routines, routine] }));
   }
+
+  /* 루틴 전체 삭제 시 블랙리스트에서도 깔끔하게 정리 */
   function deleteRoutine(id) {
     if (typeof window !== 'undefined' && !window.confirm('이 루틴과 관련된 모든 일정을 삭제할까요? 되돌릴 수 없어요.')) return;
-    updateData(d => ({
-      ...d,
-      routines: d.routines.filter(r => r.id !== id),
+    updateData(d => ({ 
+      ...d, 
+      routines: d.routines.filter(r => r.id !== id), 
       todos: d.todos.filter(t => t.routineId !== id),
-      routineSkips: (d.routineSkips || []).filter(k => !k.startsWith(`${id}__`)),
+      excludedRoutineKeys: (d.excludedRoutineKeys || []).filter(k => !k.startsWith(`${id}__`))
     }));
+  }
+
+  /* 할 일 삭제 시, 반복일정이었다면 휴지통(블랙리스트)에 기억해두기 */
+  function deleteTodo(id) { 
+    updateData(d => {
+      const target = d.todos.find(t => t.id === id);
+      const excluded = new Set(d.excludedRoutineKeys || []);
+      if (target && target.routineId) {
+        const sDate = target.sourceDate || target.date;
+        excluded.add(`${target.routineId}__${sDate}`);
+      }
+      return { 
+        ...d, 
+        todos: d.todos.filter(t => t.id !== id),
+        excludedRoutineKeys: Array.from(excluded)
+      };
+    }); 
   }
 
   function toggleComplete(id) { updateData(d => ({ ...d, todos: d.todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t) })); }
   function updateTodoText(id, text, categoryId) { updateData(d => ({ ...d, todos: d.todos.map(t => t.id === id ? { ...t, text, categoryId } : t) })); }
-  function deleteTodo(id) {
-    updateData(d => {
-      const target = d.todos.find(t => t.id === id);
-      const todos = d.todos.filter(t => t.id !== id);
-      if (target?.routineId) {
-        const skipKey = `${target.routineId}__${target.date}`;
-        return { ...d, todos, routineSkips: [...(d.routineSkips || []), skipKey] };
-      }
-      return { ...d, todos };
-    });
-  }
+  
+  /* 내일로 미룰 때 원본 날짜를 기억(sourceDate)하게 해서 무한 재생성 방지 */
   function quickDefer(t) {
     const newKey = addDaysKey(t.date, 1);
     updateData(d => {
       const newOrder = maxOrderForDate(d.todos, newKey);
-      const todos = d.todos.map(x => x.id === t.id ? { ...x, date: newKey, order: newOrder } : x);
-      if (t.routineId) {
-        const skipKey = `${t.routineId}__${t.date}`;
-        return { ...d, todos, routineSkips: [...(d.routineSkips || []), skipKey] };
-      }
-      return { ...d, todos };
+      return { 
+        ...d, 
+        todos: d.todos.map(x => {
+          if (x.id === t.id) {
+            const sDate = x.routineId ? (x.sourceDate || x.date) : undefined;
+            return { ...x, date: newKey, order: newOrder, ...(sDate && { sourceDate: sDate }) };
+          }
+          return x;
+        })
+      };
     });
   }
+
   function reorderTodos(orderedIds) {
     const orderMap = {};
     orderedIds.forEach((id, i) => { orderMap[id] = i; });
     updateData(d => ({ ...d, todos: d.todos.map(t => orderMap[t.id] !== undefined ? { ...t, order: orderMap[t.id] } : t) }));
   }
 
+  /* 선택 이동 시에도 원본 날짜를 잊지 않게 설정 */
   function confirmMove(newDateKey) {
     updateData(d => {
       let nextOrder = maxOrderForDate(d.todos, newDateKey);
       const orderAssignment = {};
       moveTargetIds.forEach(id => { nextOrder += 1; orderAssignment[id] = nextOrder; });
-      const newSkips = [];
-      d.todos.forEach(t => {
-        if (orderAssignment[t.id] !== undefined && t.routineId) {
-          newSkips.push(`${t.routineId}__${t.date}`);
-        }
-      });
       return {
         ...d,
-        todos: d.todos.map(t => orderAssignment[t.id] !== undefined ? { ...t, date: newDateKey, order: orderAssignment[t.id] } : t),
-        routineSkips: newSkips.length ? [...(d.routineSkips || []), ...newSkips] : (d.routineSkips || []),
+        todos: d.todos.map(t => {
+          if (orderAssignment[t.id] !== undefined) {
+            const sDate = t.routineId ? (t.sourceDate || t.date) : undefined;
+            return { ...t, date: newDateKey, order: orderAssignment[t.id], ...(sDate && { sourceDate: sDate }) };
+          }
+          return t;
+        }),
       };
     });
     setShowMoveModal(false);
@@ -955,10 +929,7 @@ export default function App() {
     setViewDate(new Date(d.getFullYear(), d.getMonth(), 1));
   }
   function chooseDateForSingle(t) { setMoveTargetIds([t.id]); setShowMoveModal(true); }
-
-  function toggleSelect(id) {
-    setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
-  }
+  function toggleSelect(id) { setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; }); }
   function openMoveForSelected() { setMoveTargetIds(Array.from(selectedIds)); setShowMoveModal(true); }
   function deferAllIncomplete() {
     const ids = dayTodos.filter(t => !t.completed).map(t => t.id);
@@ -970,17 +941,53 @@ export default function App() {
   return (
     <div className="min-h-screen" style={{ background: theme.paper, fontFamily: '"Inter", system-ui, sans-serif' }}>
       <style>{FONT_IMPORT}</style>
-      <div className="max-w-md md:max-w-5xl mx-auto px-4 pt-6 pb-10">
-        <div className="md:flex md:gap-6 md:items-center">
-          <div className="md:flex-1 md:min-w-0">
-            <div className="flex items-baseline justify-between md:justify-center gap-4 mb-4">
-              <h1 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-2xl font-semibold">PSG TodoList</h1>
-              <div className="flex items-center gap-4">
+      <div className="max-w-md md:max-w-5xl mx-auto px-4 pt-6 pb-12">
+        
+        {/* ================= 모바일 전용 헤더 (PC에서는 숨김) ================= */}
+        <div className="flex md:hidden items-baseline justify-between mb-5 gap-4">
+          <h1 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-2xl font-semibold">
+            PSG TodoList
+          </h1>
+          <div className="flex items-center gap-4 shrink-0">
+            <button onClick={() => setShowRoutineModal(true)} style={{ color: theme.inkMuted }}><Repeat size={18} /></button>
+            <button onClick={() => setShowCategoryModal(true)} style={{ color: theme.inkMuted }}><Tag size={18} /></button>
+            <button onClick={() => supabase.auth.signOut()} className="text-xs" style={{ color: theme.inkMuted }}>로그아웃</button>
+          </div>
+        </div>
+
+        {/* ================= 메인 레이아웃 (PC/모바일 구조 분리) ================= */}
+        <div className="flex flex-col md:flex-row md:items-start md:gap-10">
+          
+          <div className="order-2 md:order-1 md:w-[320px] md:shrink-0 mt-8 md:mt-[72px] sticky top-[72px]">
+            <MonthCalendar
+              viewDate={viewDate}
+              onPrev={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
+              onNext={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
+              onToday={() => { setViewDate(new Date()); setSelectedKey(toKey(new Date())); }}
+              selectedKey={selectedKey}
+              onSelect={setSelectedKey}
+              todosByDate={todosByDate}
+              categoryMap={categoryMap}
+            />
+          </div>
+
+          <div className="order-1 md:order-2 flex-1 min-w-0 w-full">
+            
+            <div className="hidden md:flex relative items-center justify-between mb-8 pb-2 border-b border-gray-100">
+              <h1 
+                style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} 
+                className="absolute left-1/2 -translate-x-1/2 text-2xl font-semibold whitespace-nowrap"
+              >
+                PSG TodoList
+              </h1>
+              <div className="flex-1"></div>
+              <div className="flex items-center gap-4 shrink-0 z-10 bg-white">
                 <button onClick={() => setShowRoutineModal(true)} title="루틴 관리" style={{ color: theme.inkMuted }}><Repeat size={18} /></button>
                 <button onClick={() => setShowCategoryModal(true)} title="카테고리 관리" style={{ color: theme.inkMuted }}><Tag size={18} /></button>
-                <button onClick={() => supabase.auth.signOut()} className="text-xs" style={{ color: theme.inkMuted }}>로그아웃</button>
+                <button onClick={() => supabase.auth.signOut()} className="text-xs font-medium" style={{ color: theme.inkMuted }}>로그아웃</button>
               </div>
             </div>
+
             <DayPanel
               dateKey={selectedKey}
               todos={dayTodos}
@@ -1004,18 +1011,6 @@ export default function App() {
             />
           </div>
 
-          <div className="md:order-first md:w-80 md:shrink-0 mt-6 md:mt-0">
-            <MonthCalendar
-              viewDate={viewDate}
-              onPrev={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
-              onNext={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
-              onToday={() => { setViewDate(new Date()); setSelectedKey(toKey(new Date())); }}
-              selectedKey={selectedKey}
-              onSelect={setSelectedKey}
-              todosByDate={todosByDate}
-              categoryMap={categoryMap}
-            />
-          </div>
         </div>
       </div>
 

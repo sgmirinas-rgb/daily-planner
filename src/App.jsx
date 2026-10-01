@@ -386,7 +386,7 @@ function DayPanel({
         </div>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-1">
         {todos.length === 0 && (
           <p className="text-sm py-8 text-center" style={{ color: theme.inkMuted }}>이 날은 할 일이 없어요. 아래에서 추가해보세요.</p>
         )}
@@ -940,12 +940,14 @@ export default function App() {
     <div className="min-h-screen" style={{ background: theme.paper, fontFamily: '"Inter", system-ui, sans-serif' }}>
       <style>{FONT_IMPORT}</style>
       <div className="max-w-md md:max-w-5xl mx-auto px-4 pt-6 pb-10">
-        <div className="flex items-baseline justify-between mb-6">
-          <h1 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-2xl font-semibold">데일리플래너</h1>
-          <div className="flex items-center gap-4">
-            <button onClick={() => setShowRoutineModal(true)} title="루틴 관리" style={{ color: theme.inkMuted }}><Repeat size={18} /></button>
-            <button onClick={() => setShowCategoryModal(true)} title="카테고리 관리" style={{ color: theme.inkMuted }}><Tag size={18} /></button>
-            <button onClick={() => supabase.auth.signOut()} className="text-xs" style={{ color: theme.inkMuted }}>로그아웃</button>
+        <div className="md:w-80">
+          <div className="flex items-baseline justify-between mb-4">
+            <h1 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-2xl font-semibold">PSG TodoList</h1>
+            <div className="flex items-center gap-4">
+              <button onClick={() => setShowRoutineModal(true)} title="루틴 관리" style={{ color: theme.inkMuted }}><Repeat size={18} /></button>
+              <button onClick={() => setShowCategoryModal(true)} title="카테고리 관리" style={{ color: theme.inkMuted }}><Tag size={18} /></button>
+              <button onClick={() => supabase.auth.signOut()} className="text-xs" style={{ color: theme.inkMuted }}>로그아웃</button>
+            </div>
           </div>
         </div>
 

@@ -229,7 +229,7 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
   const todayKey = toKey(new Date());
   
   return (
-    <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.line}` }}>
+    <div className="rounded-2xl p-4 sticky top-4" style={{ background: theme.card, border: `1px solid ${theme.line}` }}>
       <div className="flex items-center justify-between mb-3">
         <button onClick={onPrev} style={{ color: theme.inkMuted }}><ChevronLeft size={18} /></button>
         <div className="flex items-center gap-2">
@@ -305,7 +305,6 @@ function DayPanel({
   const label = `${dateObj.getMonth() + 1}월 ${dateObj.getDate()}일 (${WEEKDAY[dateObj.getDay()]})`;
   const incompleteCount = todos.filter(t => !t.completed).length;
 
-  // 손잡이(오른쪽 아이콘)를 눌렀을 때만 순서 바꾸기 시작
   const dragState = useRef({ id: null, index: null, startY: 0, active: false, offsetY: 0 });
   const [dragId, setDragId] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
@@ -386,6 +385,7 @@ function DayPanel({
         </div>
       )}
 
+      {/* 할 일 항목 간 간격을 최대한 좁게 설정 (space-y-0.5 및 패딩 축소) */}
       <div className="space-y-0.5">
         {todos.length === 0 && (
           <p className="text-sm py-8 text-center" style={{ color: theme.inkMuted }}>이 날은 할 일이 없어요. 아래에서 추가해보세요.</p>
@@ -397,9 +397,10 @@ function DayPanel({
           return (
             <div
               key={t.id}
-              className="flex items-center gap-3 rounded-xl px-3 py-3"
+              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2"
               style={{
                 background: theme.card,
+                border: `1px solid ${theme.line}`,
                 position: 'relative',
                 transform: isDragging ? `translateY(${dragOffset}px) scale(1.02)` : 'none',
                 boxShadow: isDragging ? '0 10px 24px rgba(0,0,0,0.18)' : 'none',
@@ -409,32 +410,32 @@ function DayPanel({
             >
               {selectMode ? (
                 <button onClick={() => onToggleSelect(t.id)}>
-                  {checked ? <CheckCircle2 size={20} style={{ color: theme.accent }} /> : <Circle size={20} style={{ color: theme.inkMuted }} />}
+                  {checked ? <CheckCircle2 size={18} style={{ color: theme.accent }} /> : <Circle size={18} style={{ color: theme.inkMuted }} />}
                 </button>
               ) : (
                 <button onClick={() => onToggle(t.id)}>
-                  {t.completed ? <CheckCircle2 size={20} style={{ color: theme.accent }} /> : <Circle size={20} style={{ color: theme.inkMuted }} />}
+                  {t.completed ? <CheckCircle2 size={18} style={{ color: theme.accent }} /> : <Circle size={18} style={{ color: theme.inkMuted }} />}
                 </button>
               )}
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat ? cat.color : '#999' }} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm break-words" style={{ color: t.completed ? theme.inkMuted : theme.ink, textDecoration: t.completed ? 'line-through' : 'none' }}>{t.text}</p>
-                {t.routineId && <p className="text-xs" style={{ color: theme.inkMuted }}>반복</p>}
+                <p className="text-sm break-words leading-tight" style={{ color: t.completed ? theme.inkMuted : theme.ink, textDecoration: t.completed ? 'line-through' : 'none' }}>{t.text}</p>
+                {t.routineId && <p className="text-[10px]" style={{ color: theme.inkMuted }}>반복</p>}
               </div>
               {!selectMode && (
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <button onClick={() => onQuickDefer(t)} title="내일로 미루기" style={{ color: theme.inkMuted }}><ArrowRight size={16} /></button>
-                  <button onClick={() => onChooseDate(t)} title="날짜 선택해서 미루기" style={{ color: theme.inkMuted }}><CalendarDays size={16} /></button>
-                  <button onClick={() => onEdit(t)} title="수정" style={{ color: theme.inkMuted }}><Pencil size={16} /></button>
-                  <button onClick={() => onDelete(t.id)} title="삭제" style={{ color: theme.inkMuted }}><Trash2 size={16} /></button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => onQuickDefer(t)} title="내일로 미루기" style={{ color: theme.inkMuted }}><ArrowRight size={15} /></button>
+                  <button onClick={() => onChooseDate(t)} title="날짜 선택해서 미루기" style={{ color: theme.inkMuted }}><CalendarDays size={15} /></button>
+                  <button onClick={() => onEdit(t)} title="수정" style={{ color: theme.inkMuted }}><Pencil size={15} /></button>
+                  <button onClick={() => onDelete(t.id)} title="삭제" style={{ color: theme.inkMuted }}><Trash2 size={15} /></button>
                   <span
                     onPointerDown={(e) => onHandlePointerDown(e, t.id, index)}
                     onPointerMove={onHandlePointerMove}
                     onPointerUp={endDrag}
                     onPointerCancel={endDrag}
-                    style={{ color: theme.inkMuted, touchAction: 'none', cursor: 'grab', padding: '4px 2px' }}
+                    style={{ color: theme.inkMuted, touchAction: 'none', cursor: 'grab', padding: '2px' }}
                   >
-                    <GripVertical size={16} />
+                    <GripVertical size={15} />
                   </span>
                 </div>
               )}
@@ -444,7 +445,7 @@ function DayPanel({
       </div>
 
       {!selectMode && (
-        <button onClick={onAddClick} className="mt-4 w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2" style={{ background: theme.accent, color: '#fff' }}>
+        <button onClick={onAddClick} className="mt-3 w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2" style={{ background: theme.accent, color: '#fff' }}>
           <Plus size={16} /> 할 일 추가
         </button>
       )}
@@ -748,8 +749,6 @@ export default function App() {
             .maybeSingle();
           if (error) throw error;
           if (fetched) { row = fetched; break; }
-          // 로그인 직후 인증 토큰이 아직 요청에 완전히 반영되지 않아
-          // 정상적으로 저장된 데이터도 빈 결과로 돌아오는 경우가 있어 짧게 재시도
           await new Promise(r => setTimeout(r, 400));
         }
         if (cancelled) return;
@@ -765,9 +764,6 @@ export default function App() {
 
     loadFromServer();
 
-    // 모바일에서 탭을 전환했다 돌아오는 등, 브라우저가 페이지를 진짜로
-    // 다시 불러오지 않고 그대로 보여주기만 하는 경우를 대비해,
-    // 탭이 다시 보일 때마다 최신 데이터를 한 번 더 가져온다.
     function handleVisibility() {
       if (document.visibilityState === 'visible') loadFromServer();
     }
@@ -940,16 +936,45 @@ export default function App() {
     <div className="min-h-screen" style={{ background: theme.paper, fontFamily: '"Inter", system-ui, sans-serif' }}>
       <style>{FONT_IMPORT}</style>
       <div className="max-w-md md:max-w-5xl mx-auto px-4 pt-6 pb-10">
-        <div className="flex items-baseline justify-between md:justify-end gap-4 mb-4">
-          <h1 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-2xl font-semibold">PSG TodoList</h1>
-          <div className="flex items-center gap-4">
+        
+        {/* PSG TodoList 제목을 할 일 항목 영역 중앙에 오도록 배치 및 모바일/PC 대응 헤더 정렬 */}
+        <div className="relative flex items-center justify-between mb-4">
+          {/* 빈 공간 균형 유지용 좌측 숨김 요소 (PC 레이아웃 기준 달력 너비와 대략 맞춤) */}
+          <div className="hidden md:block md:w-80 shrink-0"></div>
+
+          {/* 1. PSG TodoList 제목을 중앙 영역으로 배치 */}
+          <div className="flex-1 text-center md:text-center">
+            <h1 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-2xl font-semibold inline-block">
+              PSG TodoList
+            </h1>
+          </div>
+
+          {/* 우측 상단 유틸 버튼 그룹 */}
+          <div className="flex items-center gap-4 shrink-0">
             <button onClick={() => setShowRoutineModal(true)} title="루틴 관리" style={{ color: theme.inkMuted }}><Repeat size={18} /></button>
             <button onClick={() => setShowCategoryModal(true)} title="카테고리 관리" style={{ color: theme.inkMuted }}><Tag size={18} /></button>
             <button onClick={() => supabase.auth.signOut()} className="text-xs" style={{ color: theme.inkMuted }}>로그아웃</button>
           </div>
         </div>
 
-        <div className="md:flex md:gap-6 md:items-center">
+        {/* 3. 달력 위치 고정 및 좌측 배치 구조 (md:flex 레이아웃, md:order-first로 달력을 왼쪽 상단 고정) */}
+        <div className="md:flex md:gap-8 md:items-start">
+          
+          {/* 달력 영역: 왼쪽 상단 고정 (sticky top-4 적용) */}
+          <div className="md:order-first md:w-80 md:shrink-0 mb-6 md:mb-0">
+            <MonthCalendar
+              viewDate={viewDate}
+              onPrev={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
+              onNext={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
+              onToday={() => { setViewDate(new Date()); setSelectedKey(toKey(new Date())); }}
+              selectedKey={selectedKey}
+              onSelect={setSelectedKey}
+              todosByDate={todosByDate}
+              categoryMap={categoryMap}
+            />
+          </div>
+
+          {/* 할 일 목록 영역 */}
           <div className="md:flex-1 md:min-w-0">
             <DayPanel
               dateKey={selectedKey}
@@ -974,18 +999,6 @@ export default function App() {
             />
           </div>
 
-          <div className="md:order-first md:w-80 md:shrink-0 mt-6 md:mt-0">
-            <MonthCalendar
-              viewDate={viewDate}
-              onPrev={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
-              onNext={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
-              onToday={() => { setViewDate(new Date()); setSelectedKey(toKey(new Date())); }}
-              selectedKey={selectedKey}
-              onSelect={setSelectedKey}
-              todosByDate={todosByDate}
-              categoryMap={categoryMap}
-            />
-          </div>
         </div>
       </div>
 
@@ -1030,3 +1043,4 @@ export default function App() {
     </div>
   );
 }
+```[cite: 1]

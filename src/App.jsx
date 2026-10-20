@@ -19,7 +19,9 @@ const CATEGORY_COLORS = ['#D32F2F', '#E53935', '#F57C00', '#F9A825', '#388E3C', 
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
-/* ---------- Korean public holidays (2026-2030) ---------- */
+/* ---------- Korean public holidays ----------
+   2026~2028: 직접 검증해서 넣어둔 시드 데이터 (항상 이게 우선)
+   그 외 연도: /api/holidays?year=XXXX 로 자동으로 가져와서 캐시에 합침 */
 const KOREAN_HOLIDAYS = {
   '2026-01-01': { name: '신정', type: 'holiday' },
   '2026-02-16': { name: '설날 연휴', type: 'holiday' },
@@ -77,8 +79,59 @@ const KOREAN_HOLIDAYS = {
   '2028-12-25': { name: '성탄절', type: 'holiday' },
 };
 
+const SEED_YEARS = [2026, 2027, 2028];
+
+/* 모듈 레벨 캐시: 시드 + 서버에서 받아온 연도 */
+const holidayCache = { ...KOREAN_HOLIDAYS };
+const loadedYears = new Set(SEED_YEARS);
+const loadingYears = new Set();
+const holidayListeners = new Set();
+
+function notifyHolidayListeners() {
+  holidayListeners.forEach(fn => fn());
+}
+
+async function fetchHolidaysForYear(year) {
+  if (loadedYears.has(year) || loadingYears.has(year)) return;
+  loadingYears.add(year);
+  try {
+    const res = await fetch(`/api/holidays?year=${year}`);
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const list = await res.json();
+    if (!Array.isArray(list)) throw new Error('unexpected response');
+    list.forEach(h => {
+      if (!h || !h.date) return;
+      // 시드 데이터나 이미 있는 값은 덮어쓰지 않음
+      if (!holidayCache[h.date]) {
+        holidayCache[h.date] = { name: h.localName || h.name || '공휴일', type: 'holiday' };
+      }
+    });
+    loadedYears.add(year);
+    notifyHolidayListeners();
+  } catch (e) {
+    // 실패해도 앱은 정상 동작 (공휴일 표시만 빠짐). 연도를 바꿔 보면 다시 시도함.
+    console.warn(`${year}년 공휴일 불러오기 실패:`, e);
+  } finally {
+    loadingYears.delete(year);
+  }
+}
+
 function getKoreanHoliday(key) {
-  return KOREAN_HOLIDAYS[key] || null;
+  return holidayCache[key] || null;
+}
+
+/* 보고 있는 연도(앞뒤 1년 포함)의 공휴일이 필요하면 가져오고,
+   도착하면 이 컴포넌트를 다시 그리게 하는 훅 */
+function useKoreanHolidays(year) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const listener = () => setTick(t => t + 1);
+    holidayListeners.add(listener);
+    return () => { holidayListeners.delete(listener); };
+  }, []);
+  useEffect(() => {
+    [year - 1, year, year + 1].forEach(fetchHolidaysForYear);
+  }, [year]);
 }
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&display=swap');`;
@@ -128,7 +181,7 @@ function routineMatchesDate(routine, date) {
 /* [버그 수정] 삭제/이동된 루틴 좀비 방지 로직 */
 function materializeRoutines(routines, todos, excludedKeys, fromDate, toDate) {
   const existingKeys = new Set(excludedKeys || []);
-  
+
   // 현재 존재하는(또는 다른 날로 이동된) 반복 일정들의 '원본 날짜(sourceDate)'를 수집
   todos.forEach(t => {
     if (t.routineId) {
@@ -145,17 +198,17 @@ function materializeRoutines(routines, todos, excludedKeys, fromDate, toDate) {
       if (routineMatchesDate(routine, cursor)) {
         const key = toKey(cursor);
         const uniqueKey = `${routine.id}__${key}`;
-        
+
         // 이미 생성된 적 있거나 블랙리스트(휴지통)에 있는 날짜면 스킵
         if (!existingKeys.has(uniqueKey)) {
-          additions.push({ 
-            id: uid(), 
-            date: key, 
+          additions.push({
+            id: uid(),
+            date: key,
             sourceDate: key, // 원본 생성 날짜 기억
-            text: routine.text, 
-            categoryId: routine.categoryId, 
-            completed: false, 
-            routineId: routine.id 
+            text: routine.text,
+            categoryId: routine.categoryId,
+            completed: false,
+            routineId: routine.id
           });
           existingKeys.add(uniqueKey);
         }
@@ -170,10 +223,10 @@ function materializeAll(d) {
   const today = new Date();
   const from = new Date(today); from.setDate(from.getDate() - 90);
   const to = new Date(today); to.setDate(to.getDate() + 365);
-  return { 
-    ...d, 
+  return {
+    ...d,
     excludedRoutineKeys: d.excludedRoutineKeys || [], // 블랙리스트 안전장치
-    todos: materializeRoutines(d.routines, d.todos, d.excludedRoutineKeys, from, to) 
+    todos: materializeRoutines(d.routines, d.todos, d.excludedRoutineKeys, from, to)
   };
 }
 
@@ -213,9 +266,10 @@ function ModalOverlay({ onClose, children }) {
 /* ---------- month calendar ---------- */
 
 function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelect, todosByDate, categoryMap }) {
+  useKoreanHolidays(viewDate.getFullYear());
   const cells = useMemo(() => buildMonthMatrix(viewDate.getFullYear(), viewDate.getMonth()), [viewDate]);
   const todayKey = toKey(new Date());
-  
+
   return (
     <div className="rounded-2xl p-4 shadow-sm" style={{ background: theme.card, border: `1px solid ${theme.line}` }}>
       <div className="flex items-center justify-between mb-3">
@@ -235,11 +289,11 @@ function MonthCalendar({ viewDate, onPrev, onNext, onToday, selectedKey, onSelec
           const items = todosByDate[key] || [];
           const isSelected = key === selectedKey;
           const isToday = key === todayKey;
-          
+
           const holiday = getKoreanHoliday(key);
           const dayOfWeek = cell.date.getDay();
           const cellColor = holiday || dayOfWeek === 0 ? '#D32F2F' : dayOfWeek === 6 ? '#1976D2' : theme.ink;
-          
+
           return (
             <button
               key={i}
@@ -296,7 +350,7 @@ function DayPanel({
   const dragState = useRef({ id: null, index: null, startY: 0, active: false, offsetY: 0 });
   const [dragId, setDragId] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
-  const ROW_HEIGHT = 44; 
+  const ROW_HEIGHT = 44;
 
   function onHandlePointerDown(e, id, index) {
     if (selectMode) return;
@@ -650,6 +704,7 @@ function RoutineModal({ routines, categoryMap, onDelete, onClose }) {
 function MoveModal({ initialDateKey, onConfirm, onClose }) {
   const [viewDate, setViewDate] = useState(fromKey(initialDateKey));
   const [chosen, setChosen] = useState(initialDateKey);
+  useKoreanHolidays(viewDate.getFullYear());
   const cells = useMemo(() => buildMonthMatrix(viewDate.getFullYear(), viewDate.getMonth()), [viewDate]);
   return (
     <ModalOverlay onClose={onClose}>
@@ -658,21 +713,25 @@ function MoveModal({ initialDateKey, onConfirm, onClose }) {
         <button onClick={onClose} style={{ color: theme.inkMuted }}><X size={18} /></button>
       </div>
       <div className="flex items-center justify-between mb-3">
-        <button onClick={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })} style={{ color: theme.inkMuted }}><ChevronLeft size={18} /></button>
+        <button onClick={() => setViewDate(d => { const n = new Date(d); n.setDate(1); n.setMonth(n.getMonth() - 1); return n; })} style={{ color: theme.inkMuted }}><ChevronLeft size={18} /></button>
         <span className="text-sm font-medium" style={{ color: theme.ink }}>{viewDate.getFullYear()}년 {viewDate.getMonth() + 1}월</span>
-        <button onClick={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })} style={{ color: theme.inkMuted }}><ChevronRight size={18} /></button>
+        <button onClick={() => setViewDate(d => { const n = new Date(d); n.setDate(1); n.setMonth(n.getMonth() + 1); return n; })} style={{ color: theme.inkMuted }}><ChevronRight size={18} /></button>
       </div>
       <div className="grid grid-cols-7 gap-y-1 text-center mb-4">
-        {WEEKDAY.map(w => (<div key={w} className="text-xs py-1" style={{ color: theme.inkMuted }}>{w}</div>))}
+        {WEEKDAY.map((w, i) => (<div key={w} className="text-xs py-1" style={{ color: i === 0 ? '#D32F2F' : i === 6 ? '#1976D2' : theme.inkMuted }}>{w}</div>))}
         {cells.map((cell, i) => {
           const key = toKey(cell.date);
           const isChosen = chosen === key;
+          const holiday = getKoreanHoliday(key);
+          const dayOfWeek = cell.date.getDay();
+          const cellColor = holiday || dayOfWeek === 0 ? '#D32F2F' : dayOfWeek === 6 ? '#1976D2' : theme.ink;
           return (
             <button
               key={i}
               onClick={() => setChosen(key)}
+              title={holiday ? holiday.name : undefined}
               className="py-1.5 rounded-lg text-sm"
-              style={{ opacity: cell.currentMonth ? 1 : 0.35, background: isChosen ? theme.accent : 'transparent', color: isChosen ? '#fff' : theme.ink }}
+              style={{ opacity: cell.currentMonth ? 1 : 0.35, background: isChosen ? theme.accent : 'transparent', color: isChosen ? '#fff' : cellColor }}
             >
               {cell.date.getDate()}
             </button>
@@ -701,7 +760,7 @@ export default function App() {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [editingTodo, setEditingTodo] = useState(null);
   const [moveTargetIds, setMoveTargetIds] = useState([]);
-  
+
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -779,7 +838,7 @@ export default function App() {
       if (session?.user) {
         const dataToSave = { ...next, last_client_id: clientId };
         supabase.from('planner_data').upsert(
-          { user_id: session.user.id, data: dataToSave, updated_at: new Date().toISOString() }, 
+          { user_id: session.user.id, data: dataToSave, updated_at: new Date().toISOString() },
           { onConflict: 'user_id' }
         ).then(({ error }) => {
           if (error) console.error('플래너 데이터 저장 실패:', error);
@@ -847,16 +906,16 @@ export default function App() {
   /* 루틴 전체 삭제 시 블랙리스트에서도 깔끔하게 정리 */
   function deleteRoutine(id) {
     if (typeof window !== 'undefined' && !window.confirm('이 루틴과 관련된 모든 일정을 삭제할까요? 되돌릴 수 없어요.')) return;
-    updateData(d => ({ 
-      ...d, 
-      routines: d.routines.filter(r => r.id !== id), 
+    updateData(d => ({
+      ...d,
+      routines: d.routines.filter(r => r.id !== id),
       todos: d.todos.filter(t => t.routineId !== id),
       excludedRoutineKeys: (d.excludedRoutineKeys || []).filter(k => !k.startsWith(`${id}__`))
     }));
   }
 
   /* 할 일 삭제 시, 반복일정이었다면 휴지통(블랙리스트)에 기억해두기 */
-  function deleteTodo(id) { 
+  function deleteTodo(id) {
     updateData(d => {
       const target = d.todos.find(t => t.id === id);
       const excluded = new Set(d.excludedRoutineKeys || []);
@@ -864,24 +923,24 @@ export default function App() {
         const sDate = target.sourceDate || target.date;
         excluded.add(`${target.routineId}__${sDate}`);
       }
-      return { 
-        ...d, 
+      return {
+        ...d,
         todos: d.todos.filter(t => t.id !== id),
         excludedRoutineKeys: Array.from(excluded)
       };
-    }); 
+    });
   }
 
   function toggleComplete(id) { updateData(d => ({ ...d, todos: d.todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t) })); }
   function updateTodoText(id, text, categoryId) { updateData(d => ({ ...d, todos: d.todos.map(t => t.id === id ? { ...t, text, categoryId } : t) })); }
-  
+
   /* 내일로 미룰 때 원본 날짜를 기억(sourceDate)하게 해서 무한 재생성 방지 */
   function quickDefer(t) {
     const newKey = addDaysKey(t.date, 1);
     updateData(d => {
       const newOrder = maxOrderForDate(d.todos, newKey);
-      return { 
-        ...d, 
+      return {
+        ...d,
         todos: d.todos.map(x => {
           if (x.id === t.id) {
             const sDate = x.routineId ? (x.sourceDate || x.date) : undefined;
@@ -942,7 +1001,7 @@ export default function App() {
     <div className="min-h-screen" style={{ background: theme.paper, fontFamily: '"Inter", system-ui, sans-serif' }}>
       <style>{FONT_IMPORT}</style>
       <div className="max-w-md md:max-w-5xl mx-auto px-4 pt-6 pb-12">
-        
+
         {/* ================= 모바일 전용 헤더 (PC에서는 숨김) ================= */}
         <div className="flex md:hidden items-baseline justify-between mb-5 gap-4">
           <h1 style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} className="text-2xl font-semibold">
@@ -957,12 +1016,12 @@ export default function App() {
 
         {/* ================= 메인 레이아웃 (PC/모바일 구조 분리) ================= */}
         <div className="flex flex-col md:flex-row md:items-start md:gap-10">
-          
+
           <div className="order-2 md:order-1 md:w-[320px] md:shrink-0 mt-8 md:mt-[72px] sticky top-[72px]">
             <MonthCalendar
               viewDate={viewDate}
-              onPrev={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
-              onNext={() => setViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
+              onPrev={() => setViewDate(d => { const n = new Date(d); n.setDate(1); n.setMonth(n.getMonth() - 1); return n; })}
+              onNext={() => setViewDate(d => { const n = new Date(d); n.setDate(1); n.setMonth(n.getMonth() + 1); return n; })}
               onToday={() => { setViewDate(new Date()); setSelectedKey(toKey(new Date())); }}
               selectedKey={selectedKey}
               onSelect={setSelectedKey}
@@ -972,10 +1031,10 @@ export default function App() {
           </div>
 
           <div className="order-1 md:order-2 flex-1 min-w-0 w-full">
-            
+
             <div className="hidden md:flex relative items-center justify-between mb-8 pb-2 border-b border-gray-100">
-              <h1 
-                style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }} 
+              <h1
+                style={{ fontFamily: '"Source Serif 4", Georgia, serif', color: theme.ink }}
                 className="absolute left-1/2 -translate-x-1/2 text-2xl font-semibold whitespace-nowrap"
               >
                 PSG TodoList
